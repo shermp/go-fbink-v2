@@ -41,12 +41,12 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	return cFBconfig
 }
 
-func fbinkVersion() string {
+func FBinkVersion() string {
 	vers := C.GoString(C.fbink_version())
 	return vers
 }
 
-func fbinkInit(fbfd int, cfg FBInkConfig) error {
+func FBinkInit(fbfd int, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
 	var resultC C.int
@@ -58,7 +58,7 @@ func fbinkInit(fbfd int, cfg FBInkConfig) error {
 	return nil
 }
 
-func fbinkPrint(fbfd int, str string, cfg FBInkConfig) error {
+func FBinkPrint(fbfd int, str string, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
@@ -72,7 +72,7 @@ func fbinkPrint(fbfd int, str string, cfg FBInkConfig) error {
 	return nil
 }
 
-func fbinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
+func FBinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
 	fdC := C.int(fbfd)
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
@@ -89,13 +89,13 @@ func fbinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, bl
 	}
 	return nil
 }
-func fbinkIsFBquirky() bool {
+func FBinkIsFBquirky() bool {
 	var resultC C.bool
 	resultC = C.fbink_is_fb_quirky()
 	return bool(resultC)
 }
 
-func fbinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
+func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
