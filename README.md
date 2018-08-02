@@ -26,3 +26,4 @@ You can refer to the original documentation found in the `fbink.h` file, which c
 
 The primary usage difference is that where appropriate, go-fbink returns an error, or nil, rather than an integer to indicate success or failure.
 
+The only function that is unavailable in go-fbink is `fbink_printf()`. This is because cgo does not support variadic parameters.
