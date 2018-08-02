@@ -50,6 +50,14 @@ func FBinkVersion() string {
 	return vers
 }
 
+// FBinkOpen "opens the framebuffer device and returns its fd"
+// (from "fbink.h")
+func FBinkOpen() int {
+	var resultC C.int
+	resultC = C.fbink_open()
+	return int(resultC)
+}
+
 // FBinkInit initializes the fbink global variables
 // See "fbink.h" for detailed usage and explanation
 func FBinkInit(fbfd int, cfg FBInkConfig) error {
