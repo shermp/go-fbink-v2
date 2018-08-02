@@ -95,7 +95,7 @@ func FBinkIsFBquirky() bool {
 	return bool(resultC)
 }
 
-func inkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
+func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
