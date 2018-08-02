@@ -25,7 +25,7 @@ package gofbink
 
 // #cgo LDFLAGS: -L${SRCDIR}/fbinklib -lfbink
 // #include <stdlib.h>
-// #include "fbinkinclude/fbink.h"
+// #include "FBInk/fbink.h"
 import "C"
 import (
 	"errors"
