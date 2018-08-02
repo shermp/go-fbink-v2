@@ -10,34 +10,34 @@ import (
 )
 
 type FBInkConfig struct {
-	row         int16
-	col         int16
-	fontmult    uint8
-	fontname    uint8
-	isInverted  bool
-	isFlashing  bool
-	isCleared   bool
-	isCentered  bool
-	isPadded    bool
-	isVerbose   bool
-	isQuiet     bool
-	ignoreAlpha bool
+	Row         int16
+	Col         int16
+	Fontmult    uint8
+	Fontname    uint8
+	IsInverted  bool
+	IsFlashing  bool
+	IsCleared   bool
+	IsCentered  bool
+	IsPadded    bool
+	IsVerbose   bool
+	IsQuiet     bool
+	IgnoreAlpha bool
 }
 
 func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	var cFBconfig C.FBInkConfig
-	cFBconfig.row = C.short(fbConf.row)
-	cFBconfig.col = C.short(fbConf.col)
-	cFBconfig.fontmult = C.uint8_t(fbConf.fontmult)
-	cFBconfig.fontname = C.uint8_t(fbConf.fontname)
-	cFBconfig.is_inverted = C.bool(fbConf.isInverted)
-	cFBconfig.is_flashing = C.bool(fbConf.isFlashing)
-	cFBconfig.is_cleared = C.bool(fbConf.isCleared)
-	cFBconfig.is_centered = C.bool(fbConf.isCentered)
-	cFBconfig.is_padded = C.bool(fbConf.isPadded)
-	cFBconfig.is_verbose = C.bool(fbConf.isVerbose)
-	cFBconfig.is_quiet = C.bool(fbConf.isQuiet)
-	cFBconfig.ignore_alpha = C.bool(fbConf.ignoreAlpha)
+	cFBconfig.row = C.short(fbConf.Row)
+	cFBconfig.col = C.short(fbConf.Col)
+	cFBconfig.fontmult = C.uint8_t(fbConf.Fontmult)
+	cFBconfig.fontname = C.uint8_t(fbConf.Fontname)
+	cFBconfig.is_inverted = C.bool(fbConf.IsInverted)
+	cFBconfig.is_flashing = C.bool(fbConf.IsFlashing)
+	cFBconfig.is_cleared = C.bool(fbConf.IsCleared)
+	cFBconfig.is_centered = C.bool(fbConf.IsCentered)
+	cFBconfig.is_padded = C.bool(fbConf.IsPadded)
+	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
+	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
+	cFBconfig.ignore_alpha = C.bool(fbConf.IgnoreAlpha)
 	return cFBconfig
 }
 
@@ -95,7 +95,7 @@ func FBinkIsFBquirky() bool {
 	return bool(resultC)
 }
 
-func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
+func inkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
