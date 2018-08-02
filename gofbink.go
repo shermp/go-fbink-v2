@@ -9,6 +9,7 @@ import (
 	"unsafe"
 )
 
+// FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
 	Row         int16
 	Col         int16
@@ -24,6 +25,8 @@ type FBInkConfig struct {
 	IgnoreAlpha bool
 }
 
+// fbconfigGoToC is a convenience function to convert our Go config struct
+// to a C struct that fbink understands
 func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	var cFBconfig C.FBInkConfig
 	cFBconfig.row = C.short(fbConf.Row)
@@ -41,11 +44,14 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	return cFBconfig
 }
 
+// FBinkVersion gets the fbink version
 func FBinkVersion() string {
 	vers := C.GoString(C.fbink_version())
 	return vers
 }
 
+// FBinkInit initializes the fbink global variables
+// See "fbink.h" for detailed usage and explanation
 func FBinkInit(fbfd int, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
@@ -58,6 +64,8 @@ func FBinkInit(fbfd int, cfg FBInkConfig) error {
 	return nil
 }
 
+// FBinkPrint prints a string to the screen
+// See "fbink.h" for detailed usage and explanation
 func FBinkPrint(fbfd int, str string, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
@@ -72,6 +80,8 @@ func FBinkPrint(fbfd int, str string, cfg FBInkConfig) error {
 	return nil
 }
 
+// FBinkRefresh provides a way of refreshing the eink screen
+// See "fbink.h" for detailed usage and explanation
 func FBinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
 	fdC := C.int(fbfd)
 	topC := C.uint32_t(top)
@@ -89,12 +99,17 @@ func FBinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, bl
 	}
 	return nil
 }
+
+// FBinkIsFBquirky tests for a quirky framebuffer state
+// See "fbink.h" for detailed usage and explanation
 func FBinkIsFBquirky() bool {
 	var resultC C.bool
 	resultC = C.fbink_is_fb_quirky()
 	return bool(resultC)
 }
 
+// FBinkPrintImage will print an image to the screen
+// See "fbink.h" for detailed usage and explanation
 func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	imgPathC := C.CString(imgPath)
