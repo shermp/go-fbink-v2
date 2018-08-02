@@ -2,7 +2,14 @@
 go-fbink is a Go wrapper for the fbink tool found at https://github.com/NiLuJe/FBInk
 
 ## Installation and usage
-go-fbink can be retrieved by `go get github.com/shermp/go-fbink`. A precompiled static library is included for convenience if you are using a Kobo device. If you wish or need to compile your own library, you will need to make the "pic" target when compiling fbink from https://github.com/NiLuJe/FBInk
+go-fbink can be installed by doing the following:
+```
+go get github.com/shermp/go-fbink
+// download the FBInk submodule
+cd $GOPATH/src/github.com/shermp/go-fbink
+git submodule update --init --recursive
+```
+A precompiled static library is included for convenience if you are using a Kobo device. If you wish or need to compile your own library, you will need to make the "pic" target when compiling fbink from the FBInk directory
 
 The static library should reside in `fbinklib/libfbink.a`
 
