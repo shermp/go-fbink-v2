@@ -17,6 +17,8 @@ From your Go project, import go-fbink as follows:
 ```
 import gofbink "github.com/shermp/go-fbink"
 ```
+Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively.
+
 A simple example of usage is:
 ```
 fbinkOpts := gofbink.FBInkConfig{4, 0, 0, 0, false, false, false, true, false, false, false, false}
@@ -24,7 +26,6 @@ gofbink.FBinkInit(-1, fbinkOpts)
 gofbink.FBinkPrint(-1, "This is a test", fbinkOpts)
 
 fbinkOpts.Row = 8
-gofbink.FBinkInit(-1, fbinkOpts)
 gofbink.FBinkPrint(-1, "This is another test", fbinkOpts)
 
 gofbink.FBinkPrintImage(-1, "path/to/img.png", 10, 20, fbinkOpts)
