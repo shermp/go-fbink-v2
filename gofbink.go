@@ -172,3 +172,17 @@ func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) e
 	}
 	return nil
 }
+
+// ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
+// See "fbink.h" for detailed usage and explanation
+func ButtonScan(fbfd int, pressButton bool) error {
+	fdC := C.int(fbfd)
+	pressBtnC := C.bool(pressButton)
+	var resultC C.int
+	resultC = C.fbink_button_scan(fdC, pressBtnC)
+	res := int(resultC)
+	if res != exitSuccess {
+		return errors.New("c function fbink_button_scan encountered an error")
+	}
+	return nil
+}
