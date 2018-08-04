@@ -32,6 +32,22 @@ import (
 	"unsafe"
 )
 
+// Font index constants
+const (
+	IBM           uint8 = 0
+	UNSCII        uint8 = 1
+	UNSCIIalt     uint8 = 2
+	UNSCIIthin    uint8 = 3
+	UNSCIIfantasy uint8 = 4
+	UNSCIImcr     uint8 = 5
+	UNSCIItall    uint8 = 6
+)
+
+// FBFDauto is the automatic fbfd handler
+const FBFDauto = int(C.FBFD_AUTO)
+
+const exitSuccess = int(C.EXIT_SUCCESS)
+
 // FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
 	Row         int16
@@ -67,37 +83,37 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	return cFBconfig
 }
 
-// FBinkVersion gets the fbink version
-func FBinkVersion() string {
+// Version gets the fbink version
+func Version() string {
 	vers := C.GoString(C.fbink_version())
 	return vers
 }
 
-// FBinkOpen "opens the framebuffer device and returns its fd"
+// Open "opens the framebuffer device and returns its fd"
 // (from "fbink.h")
-func FBinkOpen() int {
+func Open() int {
 	var resultC C.int
 	resultC = C.fbink_open()
 	return int(resultC)
 }
 
-// FBinkInit initializes the fbink global variables
+// Init initializes the fbink global variables
 // See "fbink.h" for detailed usage and explanation
-func FBinkInit(fbfd int, cfg FBInkConfig) error {
+func Init(fbfd int, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
 	var resultC C.int
 	resultC = C.fbink_init(fdC, &fbConf)
 	res := int(resultC)
-	if res < 0 {
+	if res != exitSuccess {
 		return errors.New("c function fbink_init encountered an error")
 	}
 	return nil
 }
 
-// FBinkPrint prints a string to the screen
+// Print prints a string to the screen
 // See "fbink.h" for detailed usage and explanation
-func FBinkPrint(fbfd int, str string, cfg FBInkConfig) error {
+func Print(fbfd int, str string, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
@@ -105,15 +121,15 @@ func FBinkPrint(fbfd int, str string, cfg FBInkConfig) error {
 	var resultC C.int
 	resultC = C.fbink_print(fdC, strC, &fbConf)
 	res := int(resultC)
-	if res < 0 {
+	if res != exitSuccess {
 		return errors.New("c function fbink_print encountered an error")
 	}
 	return nil
 }
 
-// FBinkRefresh provides a way of refreshing the eink screen
+// Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func FBinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
+func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
 	fdC := C.int(fbfd)
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
@@ -125,23 +141,23 @@ func FBinkRefresh(fbfd int, top, left, width, height uint32, waveMode string, bl
 	var resultC C.int
 	resultC = C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC)
 	res := int(resultC)
-	if res < 0 {
+	if res != exitSuccess {
 		return errors.New("c function fbink_refresh encountered an error")
 	}
 	return nil
 }
 
-// FBinkIsFBquirky tests for a quirky framebuffer state
+// IsFBquirky tests for a quirky framebuffer state
 // See "fbink.h" for detailed usage and explanation
-func FBinkIsFBquirky() bool {
+func IsFBquirky() bool {
 	var resultC C.bool
 	resultC = C.fbink_is_fb_quirky()
 	return bool(resultC)
 }
 
-// FBinkPrintImage will print an image to the screen
+// PrintImage will print an image to the screen
 // See "fbink.h" for detailed usage and explanation
-func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
+func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
@@ -151,7 +167,7 @@ func FBinkPrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConf
 	var resultC C.int
 	resultC = C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf)
 	res := int(resultC)
-	if res < 0 {
+	if res != exitSuccess {
 		return errors.New("c function fbink_print_image encountered an error")
 	}
 	return nil
