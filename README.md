@@ -21,14 +21,28 @@ Note, you will need to enable cgo support when building your project, by setting
 
 A simple example of usage is:
 ```
-fbinkOpts := gofbink.FBInkConfig{4, 0, 0, 0, false, false, false, true, false, false, false, false}
-gofbink.FBinkInit(-1, fbinkOpts)
-gofbink.FBinkPrint(-1, "This is a test", fbinkOpts)
+fbinkOpts := gofbink.FBInkConfig{
+		Row:         4,
+		Col:         0,
+		Fontmult:    0,
+		Fontname:    gofbink.UNSCIIfantasy,
+		IsInverted:  false,
+		IsFlashing:  false,
+		IsCleared:   false,
+		IsCentered:  true,
+		IsPadded:    false,
+		IsVerbose:   false,
+		IsQuiet:     false,
+		IgnoreAlpha: false,
+	}
+	gofbink.Init(gofbink.FBFDauto, fbinkOpts)
+	gofbink.Print(gofbink.FBFDauto, "This is a test", fbinkOpts)
 
-fbinkOpts.Row = 8
-gofbink.FBinkPrint(-1, "This is another test", fbinkOpts)
+	fbinkOpts.Row = 8
+	gofbink.Init(gofbink.FBFDauto, fbinkOpts)
+	gofbink.Print(gofbink.FBFDauto, "This is another test", fbinkOpts)
 
-gofbink.FBinkPrintImage(-1, "path/to/img.png", 10, 20, fbinkOpts)
+	gofbink.PrintImage(gofbink.FBFDauto, "koreader.png", 10, 20, fbinkOpts)
 ```
 You can refer to the original documentation found in the `fbink.h` file, which can be found at `fbinkinclude/fbink.h`. The usage is almost identical.
 
