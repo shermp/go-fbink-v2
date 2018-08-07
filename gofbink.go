@@ -43,10 +43,17 @@ const (
 	UNSCIItall    uint8 = 6
 )
 
+// Align index constants
+const (
+	None   = 0
+	Center = 1
+	Edge   = 2
+)
+
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
 
-const exitSuccess = int(C.EXIT_SUCCESS)
+// const exitSuccess = int(C.EXIT_SUCCESS)
 
 // FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
@@ -62,6 +69,8 @@ type FBInkConfig struct {
 	IsVerbose   bool
 	IsQuiet     bool
 	IgnoreAlpha bool
+	Halign      uint8
+	Valign      uint8
 }
 
 // fbconfigGoToC is a convenience function to convert our Go config struct
@@ -80,6 +89,8 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
 	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
 	cFBconfig.ignore_alpha = C.bool(fbConf.IgnoreAlpha)
+	cFBconfig.halign = C.uint8_t(fbConf.Halign)
+	cFBconfig.valign = C.uint8_t(fbConf.Valign)
 	return cFBconfig
 }
 
@@ -105,7 +116,7 @@ func Init(fbfd int, cfg FBInkConfig) error {
 	var resultC C.int
 	resultC = C.fbink_init(fdC, &fbConf)
 	res := int(resultC)
-	if res != exitSuccess {
+	if res < 0 {
 		return errors.New("c function fbink_init encountered an error")
 	}
 	return nil
@@ -121,7 +132,7 @@ func Print(fbfd int, str string, cfg FBInkConfig) error {
 	var resultC C.int
 	resultC = C.fbink_print(fdC, strC, &fbConf)
 	res := int(resultC)
-	if res != exitSuccess {
+	if res < 0 {
 		return errors.New("c function fbink_print encountered an error")
 	}
 	return nil
@@ -141,7 +152,7 @@ func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFl
 	var resultC C.int
 	resultC = C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC)
 	res := int(resultC)
-	if res != exitSuccess {
+	if res < 0 {
 		return errors.New("c function fbink_refresh encountered an error")
 	}
 	return nil
@@ -167,7 +178,7 @@ func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) e
 	var resultC C.int
 	resultC = C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf)
 	res := int(resultC)
-	if res != exitSuccess {
+	if res < 0 {
 		return errors.New("c function fbink_print_image encountered an error")
 	}
 	return nil
@@ -175,13 +186,14 @@ func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) e
 
 // ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
-func ButtonScan(fbfd int, pressButton bool) error {
+func ButtonScan(fbfd int, pressButton, noSleep bool) error {
 	fdC := C.int(fbfd)
 	pressBtnC := C.bool(pressButton)
+	noSleepC := C.bool(noSleep)
 	var resultC C.int
-	resultC = C.fbink_button_scan(fdC, pressBtnC)
+	resultC = C.fbink_button_scan(fdC, pressBtnC, noSleepC)
 	res := int(resultC)
-	if res != exitSuccess {
+	if res < 0 {
 		return errors.New("c function fbink_button_scan encountered an error")
 	}
 	return nil
