@@ -25,6 +25,7 @@ package gofbink
 
 // #cgo LDFLAGS: -L${SRCDIR}/fbinklib -lfbink
 // #include <stdlib.h>
+// #include <errno.h>
 // #include "FBInk/fbink.h"
 import "C"
 import (
@@ -50,6 +51,14 @@ const (
 	Edge   = 2
 )
 
+// Go translation of FBInk's exit codes
+const (
+	exitSuccess = int(C.EXIT_SUCCESS)
+	exitFailure = int(C.EXIT_FAILURE) * -1
+	eNoDev      = int(C.ENODEV) * -1
+	eNotSup     = int(C.ENOTSUP) * -1
+)
+
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
 
@@ -71,6 +80,19 @@ type FBInkConfig struct {
 	IgnoreAlpha bool
 	Halign      uint8
 	Valign      uint8
+}
+
+func createError(retValue int) error {
+	switch retValue {
+	case exitFailure:
+		return errors.New("EXIT_FAILURE")
+	case eNoDev:
+		return errors.New("ENODEV")
+	case eNotSup:
+		return errors.New("ENOTSUP")
+	default:
+		return nil
+	}
 }
 
 // fbconfigGoToC is a convenience function to convert our Go config struct
@@ -108,18 +130,19 @@ func Open() int {
 	return int(resultC)
 }
 
+func close(fbfd int) error {
+	fdC := C.int(fbfd)
+	res := int(C.fbink_close(fdC))
+	return createError(res)
+}
+
 // Init initializes the fbink global variables
 // See "fbink.h" for detailed usage and explanation
 func Init(fbfd int, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
-	var resultC C.int
-	resultC = C.fbink_init(fdC, &fbConf)
-	res := int(resultC)
-	if res < 0 {
-		return errors.New("c function fbink_init encountered an error")
-	}
-	return nil
+	res := int(C.fbink_init(fdC, &fbConf))
+	return createError(res)
 }
 
 // Print prints a string to the screen
@@ -129,13 +152,8 @@ func Print(fbfd int, str string, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	var resultC C.int
-	resultC = C.fbink_print(fdC, strC, &fbConf)
-	res := int(resultC)
-	if res < 0 {
-		return errors.New("c function fbink_print encountered an error")
-	}
-	return nil
+	res := int(C.fbink_print(fdC, strC, &fbConf))
+	return createError(res)
 }
 
 // Refresh provides a way of refreshing the eink screen
@@ -149,13 +167,8 @@ func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFl
 	waveModeC := C.CString(waveMode)
 	defer C.free(unsafe.Pointer(waveModeC))
 	blackFlashC := C.bool(blackFlash)
-	var resultC C.int
-	resultC = C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC)
-	res := int(resultC)
-	if res < 0 {
-		return errors.New("c function fbink_refresh encountered an error")
-	}
-	return nil
+	res := int(C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
+	return createError(res)
 }
 
 // IsFBquirky tests for a quirky framebuffer state
@@ -175,13 +188,8 @@ func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) e
 	xC := C.short(targX)
 	yC := C.short(targY)
 	fbConf := fbconfigGoToC(cfg)
-	var resultC C.int
-	resultC = C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf)
-	res := int(resultC)
-	if res < 0 {
-		return errors.New("c function fbink_print_image encountered an error")
-	}
-	return nil
+	res := int(C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf))
+	return createError(res)
 }
 
 // ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
@@ -190,11 +198,6 @@ func ButtonScan(fbfd int, pressButton, noSleep bool) error {
 	fdC := C.int(fbfd)
 	pressBtnC := C.bool(pressButton)
 	noSleepC := C.bool(noSleep)
-	var resultC C.int
-	resultC = C.fbink_button_scan(fdC, pressBtnC, noSleepC)
-	res := int(resultC)
-	if res < 0 {
-		return errors.New("c function fbink_button_scan encountered an error")
-	}
-	return nil
+	res := int(C.fbink_button_scan(fdC, pressBtnC, noSleepC))
+	return createError(res)
 }
