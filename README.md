@@ -34,6 +34,8 @@ fbinkOpts := gofbink.FBInkConfig{
 		IsVerbose:   false,
 		IsQuiet:     false,
 		IgnoreAlpha: false,
+		Valign:      gofbink.Center
+		Halign:      gofbink.Center
 	}
 	gofbink.Init(gofbink.FBFDauto, fbinkOpts)
 	gofbink.Print(gofbink.FBFDauto, "This is a test", fbinkOpts)
@@ -46,6 +48,6 @@ fbinkOpts := gofbink.FBInkConfig{
 ```
 You can refer to the original documentation found in the `fbink.h` file, which can be found at `fbinkinclude/fbink.h`. The usage is almost identical.
 
-The primary usage difference is that where appropriate, go-fbink returns an error, or nil, rather than an integer to indicate success or failure.
+The primary usage difference is that where appropriate, go-fbink returns an error, or nil, rather than an integer to indicate success or failure. Note that the error string contains the C error code name (eg: "EXIT_FAILURE").
 
 The only function that is unavailable in go-fbink is `fbink_printf()`. This is because cgo does not support variadic parameters.
