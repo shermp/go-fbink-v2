@@ -1,6 +1,8 @@
 # go-fbink
 go-fbink is a Go wrapper for the fbink tool found at https://github.com/NiLuJe/FBInk
 
+It is currently tied to FBInk 1.4.0
+
 ## Installation and usage
 go-fbink can be installed by doing the following:
 ```
@@ -23,17 +25,9 @@ A simple example of usage is:
 ```
 fbinkOpts := gofbink.FBInkConfig{
 		Row:         4,
-		Col:         0,
-		Fontmult:    0,
+		Fontmult:    2,
 		Fontname:    gofbink.UNSCIIfantasy,
-		IsInverted:  false,
-		IsFlashing:  false,
-		IsCleared:   false,
 		IsCentered:  true,
-		IsPadded:    false,
-		IsVerbose:   false,
-		IsQuiet:     false,
-		IgnoreAlpha: false,
 		Valign:      gofbink.Center
 		Halign:      gofbink.Center
 	}
