@@ -35,13 +35,25 @@ import (
 
 // Font index constants
 const (
-	IBM           uint8 = 0
-	UNSCII        uint8 = 1
-	UNSCIIalt     uint8 = 2
-	UNSCIIthin    uint8 = 3
-	UNSCIIfantasy uint8 = 4
-	UNSCIImcr     uint8 = 5
-	UNSCIItall    uint8 = 6
+	IBM           = uint8(C.IBM)
+	UNSCII        = uint8(C.UNSCII)
+	UNSCIIalt     = uint8(C.UNSCII_ALT)
+	UNSCIIthin    = uint8(C.UNSCII_THIN)
+	UNSCIIfantasy = uint8(C.UNSCII_FANTASY)
+	UNSCIImcr     = uint8(C.UNSCII_MCR)
+	UNSCIItall    = uint8(C.UNSCII_TALL)
+	Block         = uint8(C.BLOCK)
+	Leggie        = uint8(C.LEGGIE)
+	Veggie        = uint8(C.VEGGIE)
+	Kates         = uint8(C.KATES)
+	Fkp           = uint8(C.FKP)
+	Ctrld         = uint8(C.CTRLD)
+	Orp           = uint8(C.ORP)
+	OrpB          = uint8(C.ORPB)
+	OrpI          = uint8(C.ORPI)
+	Scientifica   = uint8(C.SCIENTIFICA)
+	ScientificaB  = uint8(C.SCIENTIFICAB)
+	ScientificaI  = uint8(C.SCIENTIFICAI)
 )
 
 // Align index constants
@@ -74,6 +86,9 @@ type FBInkConfig struct {
 	IsFlashing  bool
 	IsCleared   bool
 	IsCentered  bool
+	Hoffset     int16
+	Voffset     int16
+	IsHalfway   bool
 	IsPadded    bool
 	IsVerbose   bool
 	IsQuiet     bool
@@ -107,6 +122,9 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	cFBconfig.is_flashing = C.bool(fbConf.IsFlashing)
 	cFBconfig.is_cleared = C.bool(fbConf.IsCleared)
 	cFBconfig.is_centered = C.bool(fbConf.IsCentered)
+	cFBconfig.hoffset = C.short(fbConf.Hoffset)
+	cFBconfig.voffset = C.short(fbConf.Voffset)
+	cFBconfig.is_halfway = C.bool(fbConf.IsHalfway)
 	cFBconfig.is_padded = C.bool(fbConf.IsPadded)
 	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
 	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
