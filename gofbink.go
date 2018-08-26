@@ -224,13 +224,13 @@ func Init(fbfd int, cfg FBInkConfig) error {
 
 // Print prints a string to the screen
 // See "fbink.h" for detailed usage and explanation
-func Print(fbfd int, str string, cfg FBInkConfig) error {
+func Print(fbfd int, str string, cfg FBInkConfig) (int, error) {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	res := CexitCode(C.fbink_print(fdC, strC, &fbConf))
-	return createError(res)
+	rows := CexitCode(C.fbink_print(fdC, strC, &fbConf))
+	return int(rows), createError(rows)
 }
 
 // Refresh provides a way of refreshing the eink screen
