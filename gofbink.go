@@ -33,42 +33,97 @@ import (
 	"unsafe"
 )
 
-// Font index constants
+// Font type
+type Font uint8
+
+// Font constants
 const (
-	IBM           = uint8(C.IBM)
-	UNSCII        = uint8(C.UNSCII)
-	UNSCIIalt     = uint8(C.UNSCII_ALT)
-	UNSCIIthin    = uint8(C.UNSCII_THIN)
-	UNSCIIfantasy = uint8(C.UNSCII_FANTASY)
-	UNSCIImcr     = uint8(C.UNSCII_MCR)
-	UNSCIItall    = uint8(C.UNSCII_TALL)
-	Block         = uint8(C.BLOCK)
-	Leggie        = uint8(C.LEGGIE)
-	Veggie        = uint8(C.VEGGIE)
-	Kates         = uint8(C.KATES)
-	Fkp           = uint8(C.FKP)
-	Ctrld         = uint8(C.CTRLD)
-	Orp           = uint8(C.ORP)
-	OrpB          = uint8(C.ORPB)
-	OrpI          = uint8(C.ORPI)
-	Scientifica   = uint8(C.SCIENTIFICA)
-	ScientificaB  = uint8(C.SCIENTIFICAB)
-	ScientificaI  = uint8(C.SCIENTIFICAI)
+	IBM Font = iota
+	UNSCII
+	UNSCIIalt
+	UNSCIIthin
+	UNSCIIfantasy
+	UNSCIImcr
+	UNSCIItall
+	Block
+	Leggie
+	Veggie
+	Kates
+	Fkp
+	Ctrld
+	Orp
+	OrpB
+	OrpI
+	Scientifica
+	ScientificaB
+	ScientificaI
 )
+
+// Align type
+type Align uint8
 
 // Align index constants
 const (
-	None   = 0
-	Center = 1
-	Edge   = 2
+	None Align = iota
+	Center
+	Edge
 )
+
+// FGcolor type
+type FGcolor uint8
+
+// FGcolor constants
+const (
+	FGblack FGcolor = iota
+	FGgray1
+	FGgray2
+	FGgray3
+	FGgray4
+	FGgray5
+	FGgray6
+	FGgray7
+	FGgray8
+	FGgray9
+	FGgrayA
+	FGgrayB
+	FGgrayC
+	FGgrayD
+	FGgrayE
+	FGwhite
+)
+
+// BGcolor type
+type BGcolor uint8
+
+// BGcolor constants
+const (
+	BGwhite BGcolor = iota
+	BGgrayE
+	BGgrayD
+	BGgrayC
+	BGgrayB
+	BGgrayA
+	BGgray9
+	BGgray8
+	BGgray7
+	BGgray6
+	BGgray5
+	BGgray4
+	BGgray3
+	BGgray2
+	BGgray1
+	BGblack
+)
+
+// CexitCode type
+type CexitCode int
 
 // Go translation of FBInk's exit codes
 const (
-	exitSuccess = int(C.EXIT_SUCCESS)
-	exitFailure = int(C.EXIT_FAILURE) * -1
-	eNoDev      = int(C.ENODEV) * -1
-	eNotSup     = int(C.ENOTSUP) * -1
+	exitSuccess = CexitCode(C.EXIT_SUCCESS)
+	exitFailure = CexitCode(C.EXIT_FAILURE) * -1
+	eNoDev      = CexitCode(C.ENODEV) * -1
+	eNotSup     = CexitCode(C.ENOTSUP) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -81,7 +136,7 @@ type FBInkConfig struct {
 	Row         int16
 	Col         int16
 	Fontmult    uint8
-	Fontname    uint8
+	Fontname    Font
 	IsInverted  bool
 	IsFlashing  bool
 	IsCleared   bool
@@ -90,14 +145,16 @@ type FBInkConfig struct {
 	Voffset     int16
 	IsHalfway   bool
 	IsPadded    bool
+	FGcolor     FGcolor
+	BGcolor     BGcolor
 	IsVerbose   bool
 	IsQuiet     bool
 	IgnoreAlpha bool
-	Halign      uint8
-	Valign      uint8
+	Halign      Align
+	Valign      Align
 }
 
-func createError(retValue int) error {
+func createError(retValue CexitCode) error {
 	switch retValue {
 	case exitFailure:
 		return errors.New("EXIT_FAILURE")
@@ -126,6 +183,8 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	cFBconfig.voffset = C.short(fbConf.Voffset)
 	cFBconfig.is_halfway = C.bool(fbConf.IsHalfway)
 	cFBconfig.is_padded = C.bool(fbConf.IsPadded)
+	cFBconfig.fg_color = C.uint8_t(fbConf.FGcolor)
+	cFBconfig.bg_color = C.uint8_t(fbConf.BGcolor)
 	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
 	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
 	cFBconfig.ignore_alpha = C.bool(fbConf.IgnoreAlpha)
@@ -150,7 +209,7 @@ func Open() int {
 
 func close(fbfd int) error {
 	fdC := C.int(fbfd)
-	res := int(C.fbink_close(fdC))
+	res := CexitCode(C.fbink_close(fdC))
 	return createError(res)
 }
 
@@ -159,7 +218,7 @@ func close(fbfd int) error {
 func Init(fbfd int, cfg FBInkConfig) error {
 	fbConf := fbconfigGoToC(cfg)
 	fdC := C.int(fbfd)
-	res := int(C.fbink_init(fdC, &fbConf))
+	res := CexitCode(C.fbink_init(fdC, &fbConf))
 	return createError(res)
 }
 
@@ -170,7 +229,7 @@ func Print(fbfd int, str string, cfg FBInkConfig) error {
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	res := int(C.fbink_print(fdC, strC, &fbConf))
+	res := CexitCode(C.fbink_print(fdC, strC, &fbConf))
 	return createError(res)
 }
 
@@ -185,7 +244,7 @@ func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFl
 	waveModeC := C.CString(waveMode)
 	defer C.free(unsafe.Pointer(waveModeC))
 	blackFlashC := C.bool(blackFlash)
-	res := int(C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
+	res := CexitCode(C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
 	return createError(res)
 }
 
@@ -206,7 +265,7 @@ func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) e
 	xC := C.short(targX)
 	yC := C.short(targY)
 	fbConf := fbconfigGoToC(cfg)
-	res := int(C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf))
+	res := CexitCode(C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf))
 	return createError(res)
 }
 
@@ -216,6 +275,6 @@ func ButtonScan(fbfd int, pressButton, noSleep bool) error {
 	fdC := C.int(fbfd)
 	pressBtnC := C.bool(pressButton)
 	noSleepC := C.bool(noSleep)
-	res := int(C.fbink_button_scan(fdC, pressBtnC, noSleepC))
+	res := CexitCode(C.fbink_button_scan(fdC, pressBtnC, noSleepC))
 	return createError(res)
 }
