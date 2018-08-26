@@ -229,8 +229,8 @@ func Print(fbfd int, str string, cfg FBInkConfig) (int, error) {
 	fdC := C.int(fbfd)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	rows := CexitCode(C.fbink_print(fdC, strC, &fbConf))
-	return int(rows), createError(rows)
+	rows := int(C.fbink_print(fdC, strC, &fbConf))
+	return rows, createError(CexitCode(rows))
 }
 
 // Refresh provides a way of refreshing the eink screen
