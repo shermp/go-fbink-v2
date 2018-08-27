@@ -207,7 +207,8 @@ func Open() int {
 	return int(resultC)
 }
 
-func close(fbfd int) error {
+// Close unmaps the framebuffer and closes the file descripter
+func Close(fbfd int) error {
 	fdC := C.int(fbfd)
 	res := CexitCode(C.fbink_close(fdC))
 	return createError(res)
