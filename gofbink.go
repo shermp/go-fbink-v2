@@ -147,6 +147,7 @@ type FBInkConfig struct {
 	IsPadded    bool
 	FGcolor     FGcolor
 	BGcolor     BGcolor
+	IsOverlay   bool
 	IsVerbose   bool
 	IsQuiet     bool
 	IgnoreAlpha bool
@@ -185,6 +186,7 @@ func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
 	cFBconfig.is_padded = C.bool(fbConf.IsPadded)
 	cFBconfig.fg_color = C.uint8_t(fbConf.FGcolor)
 	cFBconfig.bg_color = C.uint8_t(fbConf.BGcolor)
+	cFBconfig.is_overlay = C.bool(fbConf.IsOverlay)
 	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
 	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
 	cFBconfig.ignore_alpha = C.bool(fbConf.IgnoreAlpha)
@@ -255,6 +257,16 @@ func IsFBquirky() bool {
 	var resultC C.bool
 	resultC = C.fbink_is_fb_quirky()
 	return bool(resultC)
+}
+
+// PrintProgressBar displays a full width progress bar
+// See "fbink.h" for detailed usage and explanation
+func PrintProgressBar(fbfd int, percentage uint8, cfg FBInkConfig) error {
+	fdC := C.int(fbfd)
+	percentC := C.uint8_t(percentage)
+	cfgC := fbconfigGoToC(cfg)
+	res := CexitCode(C.fbink_print_progress_bar(fdC, percentC, &cfgC))
+	return createError(res)
 }
 
 // PrintImage will print an image to the screen
