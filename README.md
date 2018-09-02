@@ -1,7 +1,7 @@
 # go-fbink
 go-fbink is a Go wrapper for the fbink tool found at https://github.com/NiLuJe/FBInk
 
-It is currently tied to FBInk 1.4.0
+It is currently tied to FBInk 1.5.0
 
 ## Installation and usage
 go-fbink can be installed by doing the following:
