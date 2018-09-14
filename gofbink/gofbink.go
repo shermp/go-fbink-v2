@@ -249,13 +249,21 @@ func (f *FBInk) Version() string {
 
 // Open the framebuffer device and stores its fd
 func (f *FBInk) Open() {
-	f.fbfd = C.fbink_open()
+	// Only open if we haven't already obtained a file descriptor
+	if f.fbfd == C.FBFD_AUTO {
+		f.fbfd = C.fbink_open()
+	}
 }
 
 // Close unmaps the framebuffer and closes the file descripter
-func (f *FBInk) Close() error {
-	res := CexitCode(C.fbink_close(f.fbfd))
-	return createError(res)
+func (f *FBInk) Close() (err error) {
+	err = nil
+	// Nothing to do unless we obtained a file descriptor!
+	if f.fbfd != C.FBFD_AUTO {
+		res := CexitCode(C.fbink_close(f.fbfd))
+		err = createError(res)
+	}
+	return err
 }
 
 // Init initializes the fbink global variables
