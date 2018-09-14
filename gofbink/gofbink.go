@@ -137,12 +137,12 @@ const FBFDauto = int(C.FBFD_AUTO)
 type FBInkConfig struct {
 	Row         int16
 	Col         int16
-	Fontmult    uint8
-	Fontname    Font
+	fontmult    uint8
+	fontname    Font
 	IsInverted  bool
 	IsFlashing  bool
 	IsCleared   bool
-	IsCentered  bool
+	isCentered  bool
 	Hoffset     int16
 	Voffset     int16
 	IsHalfway   bool
@@ -150,11 +150,21 @@ type FBInkConfig struct {
 	FGcolor     FGcolor
 	BGcolor     BGcolor
 	IsOverlay   bool
-	IsVerbose   bool
-	IsQuiet     bool
+	isVerbose   bool
+	isQuiet     bool
 	IgnoreAlpha bool
 	Halign      Align
 	Valign      Align
+}
+
+// RestrictedConfig is a struct which configures the options that require
+// FBInk to be reinitilized
+type RestrictedConfig struct {
+	Fontmult   uint8
+	Fontname   Font
+	IsCentered bool
+	IsVerbose  bool
+	IsQuiet    bool
 }
 
 func createError(retValue CexitCode) error {
@@ -172,66 +182,63 @@ func createError(retValue CexitCode) error {
 
 // FBInk contains the active FBInk seesion
 type FBInk struct {
-	cfgC  C.FBInkConfig
-	fbfd  C.int
-	lines *list.List
+	internCfg FBInkConfig
+	fbfd      C.int
+	lines     *list.List
 }
 
 // New creates an fbInker pointer which clients can
 // use to interact with the eink framebuffer
-func New(cfg *FBInkConfig) *FBInk {
+func New(cfg *FBInkConfig, rCfg *RestrictedConfig) *FBInk {
 	f := &FBInk{}
 	f.fbfd = C.FBFD_AUTO
-	f.updateConfig(cfg, false)
+	f.UpdateRestricted(cfg, rCfg)
+	f.internCfg.Row = 4
+	f.internCfg.Col = 1
 	f.lines = list.New()
 	f.lines.PushBack(" ")
 	return f
 }
 
-func (f *FBInk) updateConfig(cfg *FBInkConfig, initIfReq bool) error {
-	reInit := false
-	f.cfgC.row = C.short(cfg.Row)
-	f.cfgC.col = C.short(cfg.Col)
-	if uint8(f.cfgC.fontmult) != cfg.Fontmult {
-		reInit = true
-	}
-	f.cfgC.fontmult = C.uint8_t(cfg.Fontmult)
-	if Font(f.cfgC.fontname) != cfg.Fontname {
-		reInit = true
-	}
-	f.cfgC.fontname = C.uint8_t(cfg.Fontname)
-	f.cfgC.is_inverted = C.bool(cfg.IsInverted)
-	f.cfgC.is_flashing = C.bool(cfg.IsFlashing)
-	f.cfgC.is_cleared = C.bool(cfg.IsCleared)
-	if bool(f.cfgC.is_centered) != cfg.IsCentered {
-		reInit = true
-	}
-	f.cfgC.is_centered = C.bool(cfg.IsCentered)
-	f.cfgC.hoffset = C.short(cfg.Hoffset)
-	f.cfgC.voffset = C.short(cfg.Voffset)
-	f.cfgC.is_halfway = C.bool(cfg.IsHalfway)
-	f.cfgC.is_padded = C.bool(cfg.IsPadded)
-	f.cfgC.fg_color = C.uint8_t(cfg.FGcolor)
-	f.cfgC.bg_color = C.uint8_t(cfg.BGcolor)
-	f.cfgC.is_overlay = C.bool(cfg.IsOverlay)
-	if bool(f.cfgC.is_verbose) != cfg.IsVerbose {
-		reInit = true
-	}
-	f.cfgC.is_verbose = C.bool(cfg.IsVerbose)
-	if bool(f.cfgC.is_quiet) != cfg.IsQuiet {
-		reInit = true
-	}
-	f.cfgC.is_quiet = C.bool(cfg.IsQuiet)
-	f.cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
-	f.cfgC.halign = C.uint8_t(cfg.Halign)
-	f.cfgC.valign = C.uint8_t(cfg.Valign)
+func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
+	var cfgC C.FBInkConfig
+	cfgC.row = C.short(cfg.Row)
+	cfgC.col = C.short(cfg.Col)
+	cfgC.fontmult = C.uint8_t(cfg.fontmult)
+	cfgC.fontname = C.uint8_t(cfg.fontname)
+	cfgC.is_inverted = C.bool(cfg.IsInverted)
+	cfgC.is_flashing = C.bool(cfg.IsFlashing)
+	cfgC.is_cleared = C.bool(cfg.IsCleared)
+	cfgC.is_centered = C.bool(cfg.isCentered)
+	cfgC.hoffset = C.short(cfg.Hoffset)
+	cfgC.voffset = C.short(cfg.Voffset)
+	cfgC.is_halfway = C.bool(cfg.IsHalfway)
+	cfgC.is_padded = C.bool(cfg.IsPadded)
+	cfgC.fg_color = C.uint8_t(cfg.FGcolor)
+	cfgC.bg_color = C.uint8_t(cfg.BGcolor)
+	cfgC.is_overlay = C.bool(cfg.IsOverlay)
+	cfgC.is_verbose = C.bool(cfg.isVerbose)
+	cfgC.is_quiet = C.bool(cfg.isQuiet)
+	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
+	cfgC.halign = C.uint8_t(cfg.Halign)
+	cfgC.valign = C.uint8_t(cfg.Valign)
+	return cfgC
+}
 
-	var err error
-	err = nil
-	if initIfReq && reInit {
-		err = f.Init()
-	}
-	return err
+// UpdateRestricted updates cfg with the values in rCfg, which is
+// followed by a call to Init()
+func (f *FBInk) UpdateRestricted(cfg *FBInkConfig, rCfg *RestrictedConfig) {
+	cfg.fontmult = rCfg.Fontmult
+	f.internCfg.fontmult = rCfg.Fontmult
+	cfg.fontname = rCfg.Fontname
+	f.internCfg.fontname = rCfg.Fontname
+	cfg.isCentered = rCfg.IsCentered
+	f.internCfg.isCentered = rCfg.IsCentered
+	cfg.isQuiet = rCfg.IsQuiet
+	f.internCfg.isQuiet = rCfg.IsQuiet
+	cfg.isVerbose = rCfg.IsVerbose
+	f.internCfg.isVerbose = rCfg.IsVerbose
+	f.Init(cfg)
 }
 
 // Version gets the fbink version
@@ -253,20 +260,19 @@ func (f *FBInk) Close() error {
 
 // Init initializes the fbink global variables
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Init() error {
-	res := CexitCode(C.fbink_init(f.fbfd, &f.cfgC))
+func (f *FBInk) Init(cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	res := CexitCode(C.fbink_init(f.fbfd, &cfgC))
 	return createError(res)
 }
 
 // FBprint prints a string to the screen
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) FBprint(str string, cfg *FBInkConfig) (rows int, err error) {
-	if cfg != nil {
-		f.updateConfig(cfg, true)
-	}
+	cfgC := f.newConfigC(cfg)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	rows = int(C.fbink_print(f.fbfd, strC, &f.cfgC))
+	rows = int(C.fbink_print(f.fbfd, strC, &cfgC))
 	return rows, createError(CexitCode(rows))
 }
 
@@ -284,9 +290,7 @@ func (f *FBInk) Println(a ...interface{}) (n int, err error) {
 	for line := f.lines.Front(); line != nil; line = line.Next() {
 		fbStr += line.Value.(string) + "\n"
 	}
-	f.cfgC.row = C.short(4)
-	f.cfgC.col = C.short(1)
-	_, err = f.FBprint(fbStr, nil)
+	_, err = f.FBprint(fbStr, &f.internCfg)
 	return n, err
 }
 
@@ -301,9 +305,7 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 	for line := f.lines.Front(); line != nil; line = line.Next() {
 		fbStr += line.Value.(string) + "\n"
 	}
-	f.cfgC.row = C.short(4)
-	f.cfgC.col = C.short(1)
-	_, err = f.FBprint(fbStr, nil)
+	_, err = f.FBprint(fbStr, &f.internCfg)
 	return n, err
 }
 
@@ -332,25 +334,21 @@ func (f *FBInk) IsFBquirky() bool {
 // PrintProgressBar displays a full width progress bar
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) PrintProgressBar(percentage uint8, cfg *FBInkConfig) error {
-	if cfg != nil {
-		f.updateConfig(cfg, true)
-	}
+	cfgC := f.newConfigC(cfg)
 	percentC := C.uint8_t(percentage)
-	res := CexitCode(C.fbink_print_progress_bar(f.fbfd, percentC, &f.cfgC))
+	res := CexitCode(C.fbink_print_progress_bar(f.fbfd, percentC, &cfgC))
 	return createError(res)
 }
 
 // PrintImage will print an image to the screen
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) PrintImage(imgPath string, targX, targY int16, cfg *FBInkConfig) error {
-	if cfg != nil {
-		f.updateConfig(cfg, true)
-	}
+	cfgC := f.newConfigC(cfg)
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
 	xC := C.short(targX)
 	yC := C.short(targY)
-	res := CexitCode(C.fbink_print_image(f.fbfd, imgPathC, xC, yC, &f.cfgC))
+	res := CexitCode(C.fbink_print_image(f.fbfd, imgPathC, xC, yC, &cfgC))
 	return createError(res)
 }
 
