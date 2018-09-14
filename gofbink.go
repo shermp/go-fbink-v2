@@ -29,7 +29,9 @@ package gofbink
 // #include "FBInk/fbink.h"
 import "C"
 import (
+	"container/list"
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -168,78 +170,146 @@ func createError(retValue CexitCode) error {
 	}
 }
 
-// fbconfigGoToC is a convenience function to convert our Go config struct
-// to a C struct that fbink understands
-func fbconfigGoToC(fbConf FBInkConfig) C.FBInkConfig {
-	var cFBconfig C.FBInkConfig
-	cFBconfig.row = C.short(fbConf.Row)
-	cFBconfig.col = C.short(fbConf.Col)
-	cFBconfig.fontmult = C.uint8_t(fbConf.Fontmult)
-	cFBconfig.fontname = C.uint8_t(fbConf.Fontname)
-	cFBconfig.is_inverted = C.bool(fbConf.IsInverted)
-	cFBconfig.is_flashing = C.bool(fbConf.IsFlashing)
-	cFBconfig.is_cleared = C.bool(fbConf.IsCleared)
-	cFBconfig.is_centered = C.bool(fbConf.IsCentered)
-	cFBconfig.hoffset = C.short(fbConf.Hoffset)
-	cFBconfig.voffset = C.short(fbConf.Voffset)
-	cFBconfig.is_halfway = C.bool(fbConf.IsHalfway)
-	cFBconfig.is_padded = C.bool(fbConf.IsPadded)
-	cFBconfig.fg_color = C.uint8_t(fbConf.FGcolor)
-	cFBconfig.bg_color = C.uint8_t(fbConf.BGcolor)
-	cFBconfig.is_overlay = C.bool(fbConf.IsOverlay)
-	cFBconfig.is_verbose = C.bool(fbConf.IsVerbose)
-	cFBconfig.is_quiet = C.bool(fbConf.IsQuiet)
-	cFBconfig.ignore_alpha = C.bool(fbConf.IgnoreAlpha)
-	cFBconfig.halign = C.uint8_t(fbConf.Halign)
-	cFBconfig.valign = C.uint8_t(fbConf.Valign)
-	return cFBconfig
+// FBInk contains the active FBInk seesion
+type FBInk struct {
+	cfgC  C.FBInkConfig
+	fbfd  C.int
+	lines *list.List
+}
+
+// New creates an fbInker pointer which clients can
+// use to interact with the eink framebuffer
+func New(cfg *FBInkConfig) *FBInk {
+	f := &FBInk{}
+	f.fbfd = C.FBFD_AUTO
+	f.updateConfig(cfg, false)
+	f.lines = list.New()
+	f.lines.PushBack(" ")
+	return f
+}
+
+func (f *FBInk) updateConfig(cfg *FBInkConfig, initIfReq bool) error {
+	reInit := false
+	f.cfgC.row = C.short(cfg.Row)
+	f.cfgC.col = C.short(cfg.Col)
+	if uint8(f.cfgC.fontmult) != cfg.Fontmult {
+		reInit = true
+	}
+	f.cfgC.fontmult = C.uint8_t(cfg.Fontmult)
+	if Font(f.cfgC.fontname) != cfg.Fontname {
+		reInit = true
+	}
+	f.cfgC.fontname = C.uint8_t(cfg.Fontname)
+	f.cfgC.is_inverted = C.bool(cfg.IsInverted)
+	f.cfgC.is_flashing = C.bool(cfg.IsFlashing)
+	f.cfgC.is_cleared = C.bool(cfg.IsCleared)
+	if bool(f.cfgC.is_centered) != cfg.IsCentered {
+		reInit = true
+	}
+	f.cfgC.is_centered = C.bool(cfg.IsCentered)
+	f.cfgC.hoffset = C.short(cfg.Hoffset)
+	f.cfgC.voffset = C.short(cfg.Voffset)
+	f.cfgC.is_halfway = C.bool(cfg.IsHalfway)
+	f.cfgC.is_padded = C.bool(cfg.IsPadded)
+	f.cfgC.fg_color = C.uint8_t(cfg.FGcolor)
+	f.cfgC.bg_color = C.uint8_t(cfg.BGcolor)
+	f.cfgC.is_overlay = C.bool(cfg.IsOverlay)
+	if bool(f.cfgC.is_verbose) != cfg.IsVerbose {
+		reInit = true
+	}
+	f.cfgC.is_verbose = C.bool(cfg.IsVerbose)
+	if bool(f.cfgC.is_quiet) != cfg.IsQuiet {
+		reInit = true
+	}
+	f.cfgC.is_quiet = C.bool(cfg.IsQuiet)
+	f.cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
+	f.cfgC.halign = C.uint8_t(cfg.Halign)
+	f.cfgC.valign = C.uint8_t(cfg.Valign)
+
+	var err error
+	err = nil
+	if initIfReq && reInit {
+		err = f.Init()
+	}
+	return err
 }
 
 // Version gets the fbink version
-func Version() string {
+func (f *FBInk) Version() string {
 	vers := C.GoString(C.fbink_version())
 	return vers
 }
 
-// Open "opens the framebuffer device and returns its fd"
-// (from "fbink.h")
-func Open() int {
-	var resultC C.int
-	resultC = C.fbink_open()
-	return int(resultC)
+// Open the framebuffer device and stores its fd
+func (f *FBInk) Open() {
+	f.fbfd = C.fbink_open()
 }
 
 // Close unmaps the framebuffer and closes the file descripter
-func Close(fbfd int) error {
-	fdC := C.int(fbfd)
-	res := CexitCode(C.fbink_close(fdC))
+func (f *FBInk) Close() error {
+	res := CexitCode(C.fbink_close(f.fbfd))
 	return createError(res)
 }
 
 // Init initializes the fbink global variables
 // See "fbink.h" for detailed usage and explanation
-func Init(fbfd int, cfg FBInkConfig) error {
-	fbConf := fbconfigGoToC(cfg)
-	fdC := C.int(fbfd)
-	res := CexitCode(C.fbink_init(fdC, &fbConf))
+func (f *FBInk) Init() error {
+	res := CexitCode(C.fbink_init(f.fbfd, &f.cfgC))
 	return createError(res)
 }
 
-// Print prints a string to the screen
+// FBprint prints a string to the screen
 // See "fbink.h" for detailed usage and explanation
-func Print(fbfd int, str string, cfg FBInkConfig) (int, error) {
-	fbConf := fbconfigGoToC(cfg)
-	fdC := C.int(fbfd)
+func (f *FBInk) FBprint(str string, cfg *FBInkConfig) (rows int, err error) {
+	if cfg != nil {
+		f.updateConfig(cfg, true)
+	}
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	rows := int(C.fbink_print(fdC, strC, &fbConf))
+	rows = int(C.fbink_print(f.fbfd, strC, &f.cfgC))
 	return rows, createError(CexitCode(rows))
+}
+
+// Println prints to the screen in the manner of calling fmt.Println()
+// Output appears as a set of scrolling lines
+func (f *FBInk) Println(a ...interface{}) (n int, err error) {
+	str := fmt.Sprint(a...)
+	n = len([]byte(str))
+	if f.lines.Len() > 5 {
+		l := f.lines.Front()
+		f.lines.Remove(l)
+	}
+	f.lines.PushBack(str)
+	fbStr := ""
+	for line := f.lines.Front(); line != nil; line = line.Next() {
+		fbStr += line.Value.(string) + "\n"
+	}
+	f.cfgC.row = C.short(4)
+	f.cfgC.col = C.short(1)
+	_, err = f.FBprint(fbStr, nil)
+	return n, err
+}
+
+// PrintLastLn replaces the last line in the output, without scrolling
+func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
+	str := fmt.Sprint(a...)
+	n = len([]byte(str))
+	l := f.lines.Back()
+	f.lines.Remove(l)
+	f.lines.PushBack(str)
+	fbStr := ""
+	for line := f.lines.Front(); line != nil; line = line.Next() {
+		fbStr += line.Value.(string) + "\n"
+	}
+	f.cfgC.row = C.short(4)
+	f.cfgC.col = C.short(1)
+	_, err = f.FBprint(fbStr, nil)
+	return n, err
 }
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFlash bool) error {
-	fdC := C.int(fbfd)
+func (f *FBInk) Refresh(top, left, width, height uint32, waveMode string, blackFlash bool) error {
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
@@ -247,13 +317,13 @@ func Refresh(fbfd int, top, left, width, height uint32, waveMode string, blackFl
 	waveModeC := C.CString(waveMode)
 	defer C.free(unsafe.Pointer(waveModeC))
 	blackFlashC := C.bool(blackFlash)
-	res := CexitCode(C.fbink_refresh(fdC, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
+	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
 	return createError(res)
 }
 
 // IsFBquirky tests for a quirky framebuffer state
 // See "fbink.h" for detailed usage and explanation
-func IsFBquirky() bool {
+func (f *FBInk) IsFBquirky() bool {
 	var resultC C.bool
 	resultC = C.fbink_is_fb_quirky()
 	return bool(resultC)
@@ -261,33 +331,34 @@ func IsFBquirky() bool {
 
 // PrintProgressBar displays a full width progress bar
 // See "fbink.h" for detailed usage and explanation
-func PrintProgressBar(fbfd int, percentage uint8, cfg FBInkConfig) error {
-	fdC := C.int(fbfd)
+func (f *FBInk) PrintProgressBar(percentage uint8, cfg *FBInkConfig) error {
+	if cfg != nil {
+		f.updateConfig(cfg, true)
+	}
 	percentC := C.uint8_t(percentage)
-	cfgC := fbconfigGoToC(cfg)
-	res := CexitCode(C.fbink_print_progress_bar(fdC, percentC, &cfgC))
+	res := CexitCode(C.fbink_print_progress_bar(f.fbfd, percentC, &f.cfgC))
 	return createError(res)
 }
 
 // PrintImage will print an image to the screen
 // See "fbink.h" for detailed usage and explanation
-func PrintImage(fbfd int, imgPath string, targX, targY int16, cfg FBInkConfig) error {
-	fdC := C.int(fbfd)
+func (f *FBInk) PrintImage(imgPath string, targX, targY int16, cfg *FBInkConfig) error {
+	if cfg != nil {
+		f.updateConfig(cfg, true)
+	}
 	imgPathC := C.CString(imgPath)
 	defer C.free(unsafe.Pointer(imgPathC))
 	xC := C.short(targX)
 	yC := C.short(targY)
-	fbConf := fbconfigGoToC(cfg)
-	res := CexitCode(C.fbink_print_image(fdC, imgPathC, xC, yC, &fbConf))
+	res := CexitCode(C.fbink_print_image(f.fbfd, imgPathC, xC, yC, &f.cfgC))
 	return createError(res)
 }
 
 // ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
-func ButtonScan(fbfd int, pressButton, noSleep bool) error {
-	fdC := C.int(fbfd)
+func (f *FBInk) ButtonScan(pressButton, noSleep bool) error {
 	pressBtnC := C.bool(pressButton)
 	noSleepC := C.bool(noSleep)
-	res := CexitCode(C.fbink_button_scan(fdC, pressBtnC, noSleepC))
+	res := CexitCode(C.fbink_button_scan(f.fbfd, pressBtnC, noSleepC))
 	return createError(res)
 }
