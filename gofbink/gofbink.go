@@ -390,7 +390,7 @@ func (f *FBInk) ButtonScan(pressButton, noSleep bool) error {
 // WaitForUSBMSprocessing waits for the end of a kobo USBMS session
 // It also tries to detect a succesful content import
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) WaitForUSBMSprocessing(forceUnplug) error {
+func (f *FBInk) WaitForUSBMSprocessing(forceUnplug bool) error {
 	forceUnplugC := C.bool(forceUnplug)
 	res := CexitCode(C.fbink_wait_for_usbms_processing(f.fbfd, forceUnplugC))
 	return createError(res)
