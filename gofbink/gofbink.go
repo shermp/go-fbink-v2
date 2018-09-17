@@ -126,6 +126,8 @@ const (
 	exitFailure = CexitCode(C.EXIT_FAILURE) * -1
 	eNoDev      = CexitCode(C.ENODEV) * -1
 	eNotSup     = CexitCode(C.ENOTSUP) * -1
+	eNoData     = CexitCode(C.ENODATA) * -1
+	eTime       = CexitCode(C.ETIME) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -175,6 +177,10 @@ func createError(retValue CexitCode) error {
 		return errors.New("ENODEV")
 	case eNotSup:
 		return errors.New("ENOTSUP")
+	case eNoData:
+		return errors.New("ENODATA")
+	case eTime:
+		return errors.New("ETIME")
 	default:
 		return nil
 	}
@@ -340,11 +346,23 @@ func (f *FBInk) IsFBquirky() bool {
 }
 
 // PrintProgressBar displays a full width progress bar
+// NOTE: percentage should be a number between 0 - 100
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) PrintProgressBar(percentage uint8, cfg *FBInkConfig) error {
 	cfgC := f.newConfigC(cfg)
 	percentC := C.uint8_t(percentage)
 	res := CexitCode(C.fbink_print_progress_bar(f.fbfd, percentC, &cfgC))
+	return createError(res)
+}
+
+// PrintActivityBar displays a full width activity bar
+// NOTE: progress should be a number between 0 - 19.
+//       where 0 enables an infinite activity bar!
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) PrintActivityBar(progress uint8, cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	progressC := C.uint8_t(progress)
+	res := CexitCode(C.fbink_print_activity_bar(f.fbfd, progressC, &cfgC))
 	return createError(res)
 }
 
@@ -366,5 +384,14 @@ func (f *FBInk) ButtonScan(pressButton, noSleep bool) error {
 	pressBtnC := C.bool(pressButton)
 	noSleepC := C.bool(noSleep)
 	res := CexitCode(C.fbink_button_scan(f.fbfd, pressBtnC, noSleepC))
+	return createError(res)
+}
+
+// WaitForUSBMSprocessing waits for the end of a kobo USBMS session
+// It also tries to detect a succesful content import
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) WaitForUSBMSprocessing(forceUnplug) error {
+	forceUnplugC := C.bool(forceUnplug)
+	res := CexitCode(C.fbink_wait_for_usbms_processing(f.fbfd, forceUnplugC))
 	return createError(res)
 }
