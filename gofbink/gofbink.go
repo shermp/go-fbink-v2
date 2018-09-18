@@ -301,10 +301,12 @@ func (f *FBInk) Println(a ...interface{}) (n int, err error) {
 	}
 	f.lines.PushBack(str)
 	fbStr := ""
+	f.internCfg.Row = 4
 	for line := f.lines.Front(); line != nil; line = line.Next() {
-		fbStr += line.Value.(string) + "\n"
+		fbStr += line.Value.(string)
+		n, err = f.FBprint(fbStr, &f.internCfg)
+		f.internCfg.Row = int16(n + 1)
 	}
-	_, err = f.FBprint(fbStr, &f.internCfg)
 	return n, err
 }
 
@@ -316,10 +318,12 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 	f.lines.Remove(l)
 	f.lines.PushBack(str)
 	fbStr := ""
+	f.internCfg.Row = 4
 	for line := f.lines.Front(); line != nil; line = line.Next() {
-		fbStr += line.Value.(string) + "\n"
+		fbStr += line.Value.(string)
+		n, err = f.FBprint(fbStr, &f.internCfg)
+		f.internCfg.Row = int16(n + 1)
 	}
-	_, err = f.FBprint(fbStr, &f.internCfg)
 	return n, err
 }
 
