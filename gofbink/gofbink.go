@@ -188,9 +188,10 @@ func createError(retValue CexitCode) error {
 
 // FBInk contains the active FBInk seesion
 type FBInk struct {
-	internCfg FBInkConfig
-	fbfd      C.int
-	lines     *list.List
+	internCfg        FBInkConfig
+	fbfd             C.int
+	lines            *list.List
+	totalRowsWritten int16
 }
 
 // New creates an fbInker pointer which clients can
@@ -306,6 +307,17 @@ func (f *FBInk) Println(a ...interface{}) (n int, err error) {
 		fbStr = line.Value.(string)
 		r, _ := f.FBprint(fbStr, &f.internCfg)
 		f.internCfg.Row += int16(r)
+	}
+	if f.internCfg.Row > f.totalRowsWritten {
+		f.totalRowsWritten = f.internCfg.Row
+	} else if f.internCfg.Row < f.totalRowsWritten {
+		row := f.internCfg.Row
+		diff := f.totalRowsWritten - row
+		for i := row; i < row+diff; i++ {
+			f.internCfg.Row = i
+			fbStr = " "
+			f.FBprint(fbStr, &f.internCfg)
+		}
 	}
 	return n, err
 }
