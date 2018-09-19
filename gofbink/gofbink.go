@@ -135,6 +135,29 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // const exitSuccess = int(C.EXIT_SUCCESS)
 
+type FBInkState struct {
+	ViewWidth      uint32
+	ViewHeight     uint32
+	ScreenWidth    uint32
+	ScreenHeight   uint32
+	ViewHoriOrigin uint8
+	ViewVertOrigin uint8
+	ViewVertOffset uint8
+	BPP            uint32
+	FontW          uint16
+	FontH          uint16
+	FontSizeMult   uint8
+	FontName       string
+	GlyphWidth     uint8
+	GlyphHeight    uint8
+	MaxCols        uint16
+	MaxRows        uint16
+	IsPerfectFit   bool
+	UserHZ         int32
+	PenFGcolor     uint8
+	PenBGcolor     uint8
+}
+
 // FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
 	Row         int16
@@ -279,6 +302,33 @@ func (f *FBInk) Init(cfg *FBInkConfig) error {
 	cfgC := f.newConfigC(cfg)
 	res := CexitCode(C.fbink_init(f.fbfd, &cfgC))
 	return createError(res)
+}
+
+// GetState dumps a lot of FBInk internal variables
+func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
+	cfgC := f.newConfigC(cfg)
+	stateC := C.FBInkState{}
+	C.fbink_get_state(&cfgC, &stateC)
+	state.ViewWidth = uint32(stateC.view_width)
+	state.ViewHeight = uint32(stateC.view_height)
+	state.ScreenWidth = uint32(stateC.screen_width)
+	state.ScreenHeight = uint32(stateC.screen_height)
+	state.ViewHoriOrigin = uint8(stateC.view_hori_origin)
+	state.ViewVertOrigin = uint8(stateC.view_vert_origin)
+	state.ViewVertOffset = uint8(stateC.view_vert_offset)
+	state.BPP = uint32(stateC.bpp)
+	state.FontW = uint16(stateC.font_w)
+	state.FontH = uint16(stateC.font_h)
+	state.FontSizeMult = uint8(stateC.fontsize_mult)
+	state.FontName = C.GoString(stateC.font_name)
+	state.GlyphWidth = uint8(stateC.glyph_width)
+	state.GlyphHeight = uint8(stateC.glyph_height)
+	state.MaxCols = uint16(stateC.max_cols)
+	state.MaxRows = uint16(stateC.max_rows)
+	state.IsPerfectFit = bool(stateC.is_perfect_fit)
+	state.UserHZ = int32(stateC.user_hz)
+	state.PenFGcolor = uint8(stateC.pen_fg_color)
+	state.PenBGcolor = uint8(stateC.pen_bg_color)
 }
 
 // FBprint prints a string to the screen
