@@ -174,9 +174,11 @@ type FBInkConfig struct {
 	Voffset     int16
 	IsHalfway   bool
 	IsPadded    bool
-	FGcolor     FGcolor
-	BGcolor     BGcolor
+	fgColor     FGcolor
+	bgColor     BGcolor
 	IsOverlay   bool
+	IsBGless    bool
+	noViewport  bool
 	isVerbose   bool
 	isQuiet     bool
 	IgnoreAlpha bool
@@ -190,6 +192,9 @@ type RestrictedConfig struct {
 	Fontmult   uint8
 	Fontname   Font
 	IsCentered bool
+	FGcolor    FGcolor
+	BGcolor    BGcolor
+	NoViewport bool
 	IsVerbose  bool
 	IsQuiet    bool
 }
@@ -246,9 +251,11 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.voffset = C.short(cfg.Voffset)
 	cfgC.is_halfway = C.bool(cfg.IsHalfway)
 	cfgC.is_padded = C.bool(cfg.IsPadded)
-	cfgC.fg_color = C.uint8_t(cfg.FGcolor)
-	cfgC.bg_color = C.uint8_t(cfg.BGcolor)
+	cfgC.fg_color = C.uint8_t(cfg.fgColor)
+	cfgC.bg_color = C.uint8_t(cfg.bgColor)
 	cfgC.is_overlay = C.bool(cfg.IsOverlay)
+	cfgC.is_bgless = C.bool(cfg.IsBGless)
+	cfgC.no_viewport = C.bool(cfg.noViewport)
 	cfgC.is_verbose = C.bool(cfg.isVerbose)
 	cfgC.is_quiet = C.bool(cfg.isQuiet)
 	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
@@ -266,6 +273,12 @@ func (f *FBInk) UpdateRestricted(cfg *FBInkConfig, rCfg *RestrictedConfig) {
 	f.internCfg.fontname = rCfg.Fontname
 	cfg.isCentered = rCfg.IsCentered
 	f.internCfg.isCentered = rCfg.IsCentered
+	cfg.fgColor = rCfg.FGcolor
+	f.internCfg.fgColor = rCfg.FGcolor
+	cfg.bgColor = rCfg.BGcolor
+	f.internCfg.bgColor = rCfg.BGcolor
+	cfg.noViewport = rCfg.NoViewport
+	f.internCfg.noViewport = rCfg.NoViewport
 	cfg.isQuiet = rCfg.IsQuiet
 	f.internCfg.isQuiet = rCfg.IsQuiet
 	cfg.isVerbose = rCfg.IsVerbose
