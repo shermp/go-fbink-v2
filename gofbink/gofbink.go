@@ -32,6 +32,8 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 	"unsafe"
 )
 
@@ -223,7 +225,7 @@ func New(cfg *FBInkConfig, rCfg *RestrictedConfig) *FBInk {
 	f := &FBInk{}
 	f.fbfd = C.FBFD_AUTO
 	f.UpdateRestricted(cfg, rCfg)
-	f.internCfg.Row = 4
+	f.internCfg.Row = 1
 	f.internCfg.Col = 1
 	f.lines = list.New()
 	f.lines.PushBack(" ")
@@ -346,15 +348,23 @@ func (f *FBInk) FBprint(str string, cfg *FBInkConfig) (rows int, err error) {
 func (f *FBInk) Println(a ...interface{}) (n int, err error) {
 	str := fmt.Sprint(a...)
 	n = len([]byte(str))
-	if f.lines.Len() > 5 {
+	if f.lines.Len() > 8 {
 		l := f.lines.Front()
 		f.lines.Remove(l)
 	}
 	f.lines.PushBack(str)
 	fbStr := ""
 	f.internCfg.Row = 4
+	state := FBInkState{}
+	f.GetState(&f.internCfg, &state)
 	for line := f.lines.Front(); line != nil; line = line.Next() {
 		fbStr = line.Value.(string)
+		strLen := utf8.RuneCountInString(fbStr)
+		numRows := strLen / (int(state.MaxCols) - 1)
+		for i := 0; i <= numRows; i++ {
+			space := strings.Repeat(" ", (int(state.MaxCols) - 1))
+			f.FBprint(space, &f.internCfg)
+		}
 		r, _ := f.FBprint(fbStr, &f.internCfg)
 		f.internCfg.Row += int16(r)
 	}
