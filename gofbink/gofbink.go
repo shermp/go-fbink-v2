@@ -61,6 +61,19 @@ const (
 	Scientifica
 	ScientificaB
 	ScientificaI
+	Terminus
+	TerminusB
+)
+
+// FontStyle type
+type FontStyle int
+
+// FontStyle constants
+const (
+	FntRegular FontStyle = iota
+	FntItalic
+	FntBold
+	FntBoldItalic
 )
 
 // Align type
@@ -130,6 +143,8 @@ const (
 	eNotSup     = CexitCode(C.ENOTSUP) * -1
 	eNoData     = CexitCode(C.ENODATA) * -1
 	eTime       = CexitCode(C.ETIME) * -1
+	eInval      = CexitCode(C.EINVAL) * -1
+	eIlSeq      = CexitCode(C.EILSEQ) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -137,6 +152,7 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // const exitSuccess = int(C.EXIT_SUCCESS)
 
+// FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
 	ViewWidth      uint32
 	ViewHeight     uint32
@@ -158,6 +174,7 @@ type FBInkState struct {
 	UserHZ         int32
 	PenFGcolor     uint8
 	PenBGcolor     uint8
+	ScreenDPI      uint16
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -174,16 +191,33 @@ type FBInkConfig struct {
 	Voffset     int16
 	IsHalfway   bool
 	IsPadded    bool
+	IsRpadded   bool
 	fgColor     FGcolor
 	bgColor     BGcolor
 	IsOverlay   bool
 	IsBGless    bool
+	isFGless    bool
 	noViewport  bool
 	isVerbose   bool
 	isQuiet     bool
 	IgnoreAlpha bool
 	Halign      Align
 	Valign      Align
+	IsDithered  bool
+	NoRefresh   bool
+}
+
+// FBInkOTConfig is a struct which configures OpenType specific options
+type FBInkOTConfig struct {
+	Margins struct {
+		Top    int16
+		Bottom int16
+		Left   int16
+		Right  int16
+	}
+	SizePt      uint16
+	IsCentred   bool
+	IsFormatted bool
 }
 
 // RestrictedConfig is a struct which configures the options that require
@@ -211,6 +245,10 @@ func createError(retValue CexitCode) error {
 		return errors.New("ENODATA")
 	case eTime:
 		return errors.New("ETIME")
+	case eInval:
+		return errors.New("EINVAL")
+	case eIlSeq:
+		return errors.New("EILSEQ")
 	default:
 		return nil
 	}
@@ -251,17 +289,33 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.voffset = C.short(cfg.Voffset)
 	cfgC.is_halfway = C.bool(cfg.IsHalfway)
 	cfgC.is_padded = C.bool(cfg.IsPadded)
+	cfgC.is_rpadded = C.bool(cfg.IsRpadded)
 	cfgC.fg_color = C.uint8_t(cfg.fgColor)
 	cfgC.bg_color = C.uint8_t(cfg.bgColor)
 	cfgC.is_overlay = C.bool(cfg.IsOverlay)
 	cfgC.is_bgless = C.bool(cfg.IsBGless)
+	cfgC.is_fgless = C.bool(cfg.isFGless)
 	cfgC.no_viewport = C.bool(cfg.noViewport)
 	cfgC.is_verbose = C.bool(cfg.isVerbose)
 	cfgC.is_quiet = C.bool(cfg.isQuiet)
 	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
 	cfgC.halign = C.uint8_t(cfg.Halign)
 	cfgC.valign = C.uint8_t(cfg.Valign)
+	cfgC.is_dithered = C.bool(cfg.IsDithered)
+	cfgC.no_refresh = C.bool(cfg.NoRefresh)
 	return cfgC
+}
+
+func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
+	var otCfgC C.FBInkOTConfig
+	otCfgC.margins.top = C.short(otCfg.Margins.Top)
+	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
+	otCfgC.margins.left = C.short(otCfg.Margins.Left)
+	otCfgC.margins.right = C.short(otCfg.Margins.Right)
+	otCfgC.size_pt = C.ushort(otCfg.SizePt)
+	otCfgC.is_centered = C.bool(otCfg.IsCentered)
+	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
+	return otCfgC
 }
 
 // UpdateRestricted updates cfg with the values in rCfg, which is
@@ -319,6 +373,23 @@ func (f *FBInk) Init(cfg *FBInkConfig) error {
 	return createError(res)
 }
 
+// AddOTfont registers an OpenType or TrueType font with FBInk
+// At least one font needs to be specified to use the OT print function
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) AddOTfont(filename string, fntStyle FontStyle) error {
+	fnC = C.CString(filename)
+	defer C.free(unsafe.Pointer(fnC))
+	res := CexitCode(C.fbink_add_ot_font(fnC, C.int(fntStyle)))
+	return createError(res)
+}
+
+// FreeOTfonts frees any loaded OT font. This MUST be called at the
+// conclusion of OT printing, to avoid memory leaks
+func (f *FBInk) FreeOTfonts() error {
+	res := CexitCode(C.fbink_free_ot_fonts())
+	return createError(res)
+}
+
 // GetState dumps a lot of FBInk internal variables
 func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	cfgC := f.newConfigC(cfg)
@@ -344,6 +415,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.UserHZ = int32(stateC.user_hz)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
+	state.ScreenDPI = uint16(stateC.screen_dpi)
 }
 
 // FBprint prints a string to the screen
@@ -354,6 +426,17 @@ func (f *FBInk) FBprint(str string, cfg *FBInkConfig) (rows int, err error) {
 	defer C.free(unsafe.Pointer(strC))
 	rows = int(C.fbink_print(f.fbfd, strC, &cfgC))
 	return rows, createError(CexitCode(rows))
+}
+
+// PrintOT prints a string to the framebuffer using OpenType or TrueType fonts
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) PrintOT(str string, otCfg *FBInkOTConfig, fbCfg *FBInkConfig) (int, error) {
+	fbCfgC := f.newConfigC(fbCfg)
+	otCfgC := f.newOTConfig(otCfg)
+	strC := C.CString(str)
+	defer C.free(unsafe.Pointer(strC))
+	res := C.fbink_print_ot(f.fbfd, strC, &otCfgC, &fbCfgC)
+	return int(res), createError(CexitCode(res))
 }
 
 // Println prints to the screen in the manner of calling fmt.Println()
@@ -414,24 +497,35 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Refresh(top, left, width, height uint32, waveMode string, blackFlash bool) error {
+func (f *FBInk) Refresh(top, left, width, height uint32, waveMode, ditherMode string, blackFlash bool) error {
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
 	heightC := C.uint32_t(height)
 	waveModeC := C.CString(waveMode)
+	ditherModeC := C.CString(ditherMode)
 	defer C.free(unsafe.Pointer(waveModeC))
+	defer C.free(unsafe.Pointer(ditherModeC))
 	blackFlashC := C.bool(blackFlash)
-	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, blackFlashC))
+	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, ditherModeC, blackFlashC))
 	return createError(res)
 }
 
-// IsFBquirky tests for a quirky framebuffer state
+// // IsFBquirky tests for a quirky framebuffer state
+// // See "fbink.h" for detailed usage and explanation
+// func (f *FBInk) IsFBquirky() bool {
+// 	var resultC C.bool
+// 	resultC = C.fbink_is_fb_quirky()
+// 	return bool(resultC)
+// }
+
+// ReInit handles cases where the framebuffer state such as bit depth
+// or rotation may change
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) IsFBquirky() bool {
-	var resultC C.bool
-	resultC = C.fbink_is_fb_quirky()
-	return bool(resultC)
+func (f *FBInk) ReInit(cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	res := CexitCode(C.fbink_reinit(f.fbfd, &cfgC))
+	return createError(res)
 }
 
 // PrintProgressBar displays a full width progress bar
@@ -464,6 +558,23 @@ func (f *FBInk) PrintImage(imgPath string, targX, targY int16, cfg *FBInkConfig)
 	xC := C.short(targX)
 	yC := C.short(targY)
 	res := CexitCode(C.fbink_print_image(f.fbfd, imgPathC, xC, yC, &cfgC))
+	return createError(res)
+}
+
+// PrintRawData prints raw scanlines to the screen, without having to save image
+// to disk beforehand. Useful for images created programatically.
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) PrintRawData(data []byte, w, h int, xOff, yOff uint16, cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	res := CexitCode(C.fbink_print_raw_data(
+		f.fbfd,
+		unsafe.Pointer(&data[0]),
+		C.int(w),
+		C.int(h),
+		C.size_t(data.Len()),
+		C.short(xOff),
+		C.short(yOff),
+		&cfgC))
 	return createError(res)
 }
 
