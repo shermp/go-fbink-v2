@@ -23,7 +23,7 @@
 
 package gofbink
 
-// #cgo LDFLAGS: -L${SRCDIR}/../fbinklib -lfbink
+// #cgo LDFLAGS: -L${SRCDIR}/../fbinklib -lfbink -lm
 // #include <stdlib.h>
 // #include <errno.h>
 // #include "../FBInk/fbink.h"
@@ -313,7 +313,7 @@ func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
 	otCfgC.size_pt = C.ushort(otCfg.SizePt)
-	otCfgC.is_centered = C.bool(otCfg.IsCentered)
+	otCfgC.is_centered = C.bool(otCfg.IsCentred)
 	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
 	return otCfgC
 }
@@ -377,9 +377,9 @@ func (f *FBInk) Init(cfg *FBInkConfig) error {
 // At least one font needs to be specified to use the OT print function
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) AddOTfont(filename string, fntStyle FontStyle) error {
-	fnC = C.CString(filename)
+	fnC := C.CString(filename)
 	defer C.free(unsafe.Pointer(fnC))
-	res := CexitCode(C.fbink_add_ot_font(fnC, C.int(fntStyle)))
+	res := CexitCode(C.fbink_add_ot_font(fnC, C.FONT_STYLE_T(fntStyle)))
 	return createError(res)
 }
 
@@ -568,10 +568,10 @@ func (f *FBInk) PrintRawData(data []byte, w, h int, xOff, yOff uint16, cfg *FBIn
 	cfgC := f.newConfigC(cfg)
 	res := CexitCode(C.fbink_print_raw_data(
 		f.fbfd,
-		unsafe.Pointer(&data[0]),
+		(*C.uchar)(unsafe.Pointer(&data[0])),
 		C.int(w),
 		C.int(h),
-		C.size_t(data.Len()),
+		C.size_t(len(data)),
 		C.short(xOff),
 		C.short(yOff),
 		&cfgC))
