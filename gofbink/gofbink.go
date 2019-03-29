@@ -367,6 +367,7 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
 	cfgC.halign = C.uint8_t(cfg.Halign)
 	cfgC.valign = C.uint8_t(cfg.Valign)
+	cfgC.wfm_mode = C.uint8_t(cfg.WfmMode)
 	cfgC.is_dithered = C.bool(cfg.IsDithered)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
 	return cfgC
