@@ -202,7 +202,7 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
-	UserHZ         int64
+	UserHZ         int
 	FontName       string
 	ViewWidth      uint32
 	ViewHeight     uint32
@@ -478,7 +478,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.MaxCols = uint16(stateC.max_cols)
 	state.MaxRows = uint16(stateC.max_rows)
 	state.IsPerfectFit = bool(stateC.is_perfect_fit)
-	state.UserHZ = int32(stateC.user_hz)
+	state.UserHZ = int(stateC.user_hz)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
 	state.ScreenDPI = uint16(stateC.screen_dpi)
