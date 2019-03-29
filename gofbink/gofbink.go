@@ -469,7 +469,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.ScreenWidth = uint32(stateC.screen_width)
 	state.ScreenHeight = uint32(stateC.screen_height)
 	state.BPP = uint32(stateC.bpp)
-	state.DeviceName = C.GoString(stateC.device_name)
+	state.DeviceName = C.GoString(&stateC.device_name[0])
 	state.DeviceId = uint16(stateC.device_id)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
