@@ -18,7 +18,7 @@ From your Go project, import go-fbink as follows:
 ```
 import "github.com/shermp/go-fbink-v2/gofbink"
 ```
-Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively.
+Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively, as well as setting the proper target architecture with `GOARCH=arm`.
 
 A simple example program has been provided in `example/main.go`
 
