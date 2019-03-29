@@ -63,6 +63,10 @@ const (
 	ScientificaI
 	Terminus
 	TerminusB
+	Fatty
+	Spleen
+	Tewi
+	TewiB
 )
 
 // FontStyle type
@@ -132,6 +136,50 @@ const (
 	BGblack
 )
 
+// WaveFormMode type
+type WaveFormMode uint8
+
+// WaveFormMode constants
+const (
+	WfmGC16 WaveFormMode = iota
+	WfmDU
+	WfmGC4
+	WfmA2
+	WfmGL16
+	WfmREAGL
+	WfmREAGLD
+	WfmGC16_FAST
+	WfmGL16_FAST
+	WfmDU4
+	WfmGL4
+	WfmGL16_INV
+	WfmGCK16
+	WfmGLKW16
+	WfmAUTO
+)
+
+// HWDither type
+type HWDither uint8
+
+// HWDither constants
+const (
+	DitherPassthrough HWDither = iota
+	DitherFloydSteingberg
+	DitherAtkinson
+	DitherOrdered
+	DitherQuantOnly
+)
+
+// NTXRota type
+type NTXRota uint8
+
+// NTXRota constants
+const (
+	NTXRotaStraight NTXRota = iota
+	NTXRotaAllInverted
+	NTXRotaOddInverted
+)
+
 // CexitCode type
 type CexitCode int
 
@@ -154,27 +202,33 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
+	UserHZ         int64
+	FontName       string
 	ViewWidth      uint32
 	ViewHeight     uint32
 	ScreenWidth    uint32
 	ScreenHeight   uint32
-	ViewHoriOrigin uint8
-	ViewVertOrigin uint8
-	ViewVertOffset uint8
 	BPP            uint32
-	FontW          uint16
-	FontH          uint16
-	FontSizeMult   uint8
-	FontName       string
-	GlyphWidth     uint8
-	GlyphHeight    uint8
-	MaxCols        uint16
-	MaxRows        uint16
-	IsPerfectFit   bool
-	UserHZ         int32
+	DeviceName     string
+	DeviceId       uint16
 	PenFGcolor     uint8
 	PenBGcolor     uint8
 	ScreenDPI      uint16
+	FontW          uint16
+	FontH          uint16
+	MaxCols        uint16
+	MaxRows        uint16
+	ViewHoriOrigin uint8
+	ViewVertOrigin uint8
+	ViewVertOffset uint8
+	FontSizeMult   uint8
+	GlyphWidth     uint8
+	GlyphHeight    uint8
+	IsPerfectFit   bool
+	IsKoboNonMT    bool
+	NTXBootRota    uint8
+	NTXRotaQuirk   NTXRota
+	CanRotate      bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -203,6 +257,7 @@ type FBInkConfig struct {
 	IgnoreAlpha bool
 	Halign      Align
 	Valign      Align
+	WfmMode     WaveFormMode
 	IsDithered  bool
 	NoRefresh   bool
 }
@@ -218,6 +273,17 @@ type FBInkOTConfig struct {
 	SizePt      uint16
 	IsCentred   bool
 	IsFormatted bool
+}
+
+type FBInkDump struct {
+	Rota   uint8
+	BPP    uint8
+	x      uint16
+	y      uint16
+	w      uint16
+	h      uint16
+	data   *uint8
+	IsFull bool
 }
 
 // RestrictedConfig is a struct which configures the options that require
@@ -497,15 +563,13 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Refresh(top, left, width, height uint32, waveMode, ditherMode string, blackFlash bool) error {
+func (f *FBInk) Refresh(top, left, width, height uint32, waveMode WaveFormMode, ditherMode HWDither, blackFlash bool) error {
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
 	heightC := C.uint32_t(height)
-	waveModeC := C.CString(waveMode)
-	ditherModeC := C.CString(ditherMode)
-	defer C.free(unsafe.Pointer(waveModeC))
-	defer C.free(unsafe.Pointer(ditherModeC))
+	waveModeC := C.uint8_t(waveMode)
+	ditherModeC := C.uint8_t(ditherMode)
 	blackFlashC := C.bool(blackFlash)
 	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, ditherModeC, blackFlashC))
 	return createError(res)
@@ -578,7 +642,17 @@ func (f *FBInk) PrintRawData(data []byte, w, h int, xOff, yOff uint16, cfg *FBIn
 	return createError(res)
 }
 
-// ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
+// ClearScreen simply clears the screen to white
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	res := CexitCode(C.fbink_cls(f.fbfd, &cfgC))
+	return createError(res)
+}
+
+// TODO: fbink_dump, fbink_region_dump, fbink_restore
+
+// ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) ButtonScan(pressButton, noSleep bool) error {
 	pressBtnC := C.bool(pressButton)
