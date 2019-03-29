@@ -63,6 +63,10 @@ const (
 	ScientificaI
 	Terminus
 	TerminusB
+	Fatty
+	Spleen
+	Tewi
+	TewiB
 )
 
 // FontStyle type
@@ -132,6 +136,50 @@ const (
 	BGblack
 )
 
+// WaveFormMode type
+type WaveFormMode uint8
+
+// WaveFormMode constants
+const (
+	WfmGC16 WaveFormMode = iota
+	WfmDU
+	WfmGC4
+	WfmA2
+	WfmGL16
+	WfmREAGL
+	WfmREAGLD
+	WfmGC16_FAST
+	WfmGL16_FAST
+	WfmDU4
+	WfmGL4
+	WfmGL16_INV
+	WfmGCK16
+	WfmGLKW16
+	WfmAUTO
+)
+
+// HWDither type
+type HWDither uint8
+
+// HWDither constants
+const (
+	DitherPassthrough HWDither = iota
+	DitherFloydSteingberg
+	DitherAtkinson
+	DitherOrdered
+	DitherQuantOnly
+)
+
+// NTXRota type
+type NTXRota uint8
+
+// NTXRota constants
+const (
+	NTXRotaStraight NTXRota = iota
+	NTXRotaAllInverted
+	NTXRotaOddInverted
+)
+
 // CexitCode type
 type CexitCode int
 
@@ -154,27 +202,33 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
+	UserHZ         int
+	FontName       string
 	ViewWidth      uint32
 	ViewHeight     uint32
 	ScreenWidth    uint32
 	ScreenHeight   uint32
-	ViewHoriOrigin uint8
-	ViewVertOrigin uint8
-	ViewVertOffset uint8
 	BPP            uint32
-	FontW          uint16
-	FontH          uint16
-	FontSizeMult   uint8
-	FontName       string
-	GlyphWidth     uint8
-	GlyphHeight    uint8
-	MaxCols        uint16
-	MaxRows        uint16
-	IsPerfectFit   bool
-	UserHZ         int32
+	DeviceName     string
+	DeviceId       uint16
 	PenFGcolor     uint8
 	PenBGcolor     uint8
 	ScreenDPI      uint16
+	FontW          uint16
+	FontH          uint16
+	MaxCols        uint16
+	MaxRows        uint16
+	ViewHoriOrigin uint8
+	ViewVertOrigin uint8
+	ViewVertOffset uint8
+	FontSizeMult   uint8
+	GlyphWidth     uint8
+	GlyphHeight    uint8
+	IsPerfectFit   bool
+	IsKoboNonMT    bool
+	NTXBootRota    uint8
+	NTXRotaQuirk   NTXRota
+	CanRotate      bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -203,6 +257,7 @@ type FBInkConfig struct {
 	IgnoreAlpha bool
 	Halign      Align
 	Valign      Align
+	WfmMode     WaveFormMode
 	IsDithered  bool
 	NoRefresh   bool
 }
@@ -218,6 +273,17 @@ type FBInkOTConfig struct {
 	SizePt      uint16
 	IsCentred   bool
 	IsFormatted bool
+}
+
+type FBInkDump struct {
+	Rota   uint8
+	BPP    uint8
+	x      uint16
+	y      uint16
+	w      uint16
+	h      uint16
+	data   *uint8
+	IsFull bool
 }
 
 // RestrictedConfig is a struct which configures the options that require
@@ -301,6 +367,7 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
 	cfgC.halign = C.uint8_t(cfg.Halign)
 	cfgC.valign = C.uint8_t(cfg.Valign)
+	cfgC.wfm_mode = C.uint8_t(cfg.WfmMode)
 	cfgC.is_dithered = C.bool(cfg.IsDithered)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
 	return cfgC
@@ -395,27 +462,33 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	cfgC := f.newConfigC(cfg)
 	stateC := C.FBInkState{}
 	C.fbink_get_state(&cfgC, &stateC)
+	state.UserHZ = int(stateC.user_hz)
+	state.FontName = C.GoString(stateC.font_name)
 	state.ViewWidth = uint32(stateC.view_width)
 	state.ViewHeight = uint32(stateC.view_height)
 	state.ScreenWidth = uint32(stateC.screen_width)
 	state.ScreenHeight = uint32(stateC.screen_height)
-	state.ViewHoriOrigin = uint8(stateC.view_hori_origin)
-	state.ViewVertOrigin = uint8(stateC.view_vert_origin)
-	state.ViewVertOffset = uint8(stateC.view_vert_offset)
 	state.BPP = uint32(stateC.bpp)
-	state.FontW = uint16(stateC.font_w)
-	state.FontH = uint16(stateC.font_h)
-	state.FontSizeMult = uint8(stateC.fontsize_mult)
-	state.FontName = C.GoString(stateC.font_name)
-	state.GlyphWidth = uint8(stateC.glyph_width)
-	state.GlyphHeight = uint8(stateC.glyph_height)
-	state.MaxCols = uint16(stateC.max_cols)
-	state.MaxRows = uint16(stateC.max_rows)
-	state.IsPerfectFit = bool(stateC.is_perfect_fit)
-	state.UserHZ = int32(stateC.user_hz)
+	state.DeviceName = C.GoString(&stateC.device_name[0])
+	state.DeviceId = uint16(stateC.device_id)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
 	state.ScreenDPI = uint16(stateC.screen_dpi)
+	state.FontW = uint16(stateC.font_w)
+	state.FontH = uint16(stateC.font_h)
+	state.MaxCols = uint16(stateC.max_cols)
+	state.MaxRows = uint16(stateC.max_rows)
+	state.ViewHoriOrigin = uint8(stateC.view_hori_origin)
+	state.ViewVertOrigin = uint8(stateC.view_vert_origin)
+	state.ViewVertOffset = uint8(stateC.view_vert_offset)
+	state.FontSizeMult = uint8(stateC.fontsize_mult)
+	state.GlyphWidth = uint8(stateC.glyph_width)
+	state.GlyphHeight = uint8(stateC.glyph_height)
+	state.IsPerfectFit = bool(stateC.is_perfect_fit)
+	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
+	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
+	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
+	state.CanRotate = bool(stateC.can_rotate)
 }
 
 // FBprint prints a string to the screen
@@ -497,15 +570,13 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Refresh(top, left, width, height uint32, waveMode, ditherMode string, blackFlash bool) error {
+func (f *FBInk) Refresh(top, left, width, height uint32, waveMode WaveFormMode, ditherMode HWDither, blackFlash bool) error {
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
 	heightC := C.uint32_t(height)
-	waveModeC := C.CString(waveMode)
-	ditherModeC := C.CString(ditherMode)
-	defer C.free(unsafe.Pointer(waveModeC))
-	defer C.free(unsafe.Pointer(ditherModeC))
+	waveModeC := C.uint8_t(waveMode)
+	ditherModeC := C.uint8_t(ditherMode)
 	blackFlashC := C.bool(blackFlash)
 	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, ditherModeC, blackFlashC))
 	return createError(res)
@@ -578,7 +649,17 @@ func (f *FBInk) PrintRawData(data []byte, w, h int, xOff, yOff uint16, cfg *FBIn
 	return createError(res)
 }
 
-// ButtonScan will scann for the 'Connect' button on the Kobo USB connect screen
+// ClearScreen simply clears the screen to white
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	res := CexitCode(C.fbink_cls(f.fbfd, &cfgC))
+	return createError(res)
+}
+
+// TODO: fbink_dump, fbink_region_dump, fbink_restore
+
+// ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) ButtonScan(pressButton, noSleep bool) error {
 	pressBtnC := C.bool(pressButton)

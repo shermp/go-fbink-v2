@@ -3,7 +3,7 @@ go-fbink is a Go wrapper for the fbink tool found at https://github.com/NiLuJe/F
 
 go-fbink-v2 is no longer quite the simple wrapper anymore. It adds some convenience functions to use FBInk more like printing to a console. go-fbink-v2 now sets up an object with appropriate methods for use in programs.
 
-go-fbink-v2 is currently tied to FBInk 1.10.3
+go-fbink-v2 is currently tied to FBInk 1.13.0
 
 ## Installation and usage
 go-fbink can be installed by doing the following:
@@ -18,7 +18,7 @@ From your Go project, import go-fbink as follows:
 ```
 import "github.com/shermp/go-fbink-v2/gofbink"
 ```
-Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively.
+Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively, as well as setting the proper target architecture with `GOARCH=arm`.
 
 A simple example program has been provided in `example/main.go`
 
