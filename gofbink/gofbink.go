@@ -141,8 +141,9 @@ type WaveFormMode uint8
 
 // WaveFormMode constants
 const (
-	WfmGC16 WaveFormMode = iota
+	WfmAUTO WaveFormMode = iota
 	WfmDU
+	WfmGC16
 	WfmGC4
 	WfmA2
 	WfmGL16
@@ -155,7 +156,7 @@ const (
 	WfmGL16_INV
 	WfmGCK16
 	WfmGLKW16
-	WfmAUTO
+	WfmINIT
 )
 
 // HWDither type
@@ -233,33 +234,37 @@ type FBInkState struct {
 
 // FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
-	Row         int16
-	Col         int16
-	fontmult    uint8
-	fontname    Font
-	IsInverted  bool
-	IsFlashing  bool
-	IsCleared   bool
-	isCentered  bool
-	Hoffset     int16
-	Voffset     int16
-	IsHalfway   bool
-	IsPadded    bool
-	IsRpadded   bool
-	fgColor     FGcolor
-	bgColor     BGcolor
-	IsOverlay   bool
-	IsBGless    bool
-	isFGless    bool
-	noViewport  bool
-	isVerbose   bool
-	isQuiet     bool
-	IgnoreAlpha bool
-	Halign      Align
-	Valign      Align
-	WfmMode     WaveFormMode
-	IsDithered  bool
-	NoRefresh   bool
+	Row          int16
+	Col          int16
+	fontmult     uint8
+	fontname     Font
+	IsInverted   bool
+	IsFlashing   bool
+	IsCleared    bool
+	isCentered   bool
+	Hoffset      int16
+	Voffset      int16
+	IsHalfway    bool
+	IsPadded     bool
+	IsRpadded    bool
+	fgColor      FGcolor
+	bgColor      BGcolor
+	IsOverlay    bool
+	IsBGless     bool
+	isFGless     bool
+	noViewport   bool
+	isVerbose    bool
+	isQuiet      bool
+	IgnoreAlpha  bool
+	Halign       Align
+	Valign       Align
+	ScaledWidth  int16
+	ScaledHeight int16
+	WfmMode      WaveFormMode
+	IsDithered   bool
+	SWDithering  bool
+	IsNightmode  bool
+	NoRefresh    bool
 }
 
 // FBInkOTConfig is a struct which configures OpenType specific options
@@ -276,13 +281,14 @@ type FBInkOTConfig struct {
 }
 
 type FBInkDump struct {
-	Rota   uint8
-	BPP    uint8
+	data   *uint8
+	Size   uint
 	x      uint16
 	y      uint16
 	w      uint16
 	h      uint16
-	data   *uint8
+	Rota   uint8
+	BPP    uint8
 	IsFull bool
 }
 
@@ -367,8 +373,12 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.ignore_alpha = C.bool(cfg.IgnoreAlpha)
 	cfgC.halign = C.uint8_t(cfg.Halign)
 	cfgC.valign = C.uint8_t(cfg.Valign)
+	cfgC.scaled_width = C.short(cfg.ScaledWidth)
+	cfgC.scaled_height = C.short(cfg.ScaledHeight)
 	cfgC.wfm_mode = C.uint8_t(cfg.WfmMode)
 	cfgC.is_dithered = C.bool(cfg.IsDithered)
+	cfgC.sw_dithering = C.bool(cfg.SWDithering)
+	cfgC.is_nightmode = C.bool(cfg.IsNightmode)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
 	return cfgC
 }
@@ -570,15 +580,14 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Refresh(top, left, width, height uint32, waveMode WaveFormMode, ditherMode HWDither, blackFlash bool) error {
+func (f *FBInk) Refresh(top, left, width, height uint32, ditherMode HWDither, cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
 	heightC := C.uint32_t(height)
-	waveModeC := C.uint8_t(waveMode)
 	ditherModeC := C.uint8_t(ditherMode)
-	blackFlashC := C.bool(blackFlash)
-	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, waveModeC, ditherModeC, blackFlashC))
+	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, ditherModeC, &cfgC))
 	return createError(res)
 }
 
