@@ -32,6 +32,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"image"
 	"strings"
 	"unicode/utf8"
 	"unsafe"
@@ -652,6 +653,23 @@ func (f *FBInk) PrintRawData(data []byte, w, h int, xOff, yOff uint16, cfg *FBIn
 		C.int(w),
 		C.int(h),
 		C.size_t(len(data)),
+		C.short(xOff),
+		C.short(yOff),
+		&cfgC))
+	return createError(res)
+}
+
+// PrintRBGA prints an image stored in an image.RGBA
+func (f *FBInk) PrintRBGA(xOff, yOff int16, im *image.RGBA, cfg *FBInkConfig) error {
+	cfgC := f.newConfigC(cfg)
+	w := im.Rect.Max.X - im.Rect.Min.X
+	h := im.Rect.Max.Y - im.Rect.Min.Y
+	res := CexitCode(C.fbink_print_raw_data(
+		f.fbfd,
+		(*C.uchar)(unsafe.Pointer(&im.Pix[0])),
+		C.int(w),
+		C.int(h),
+		C.size_t(im.Stride*h),
 		C.short(xOff),
 		C.short(yOff),
 		&cfgC))
