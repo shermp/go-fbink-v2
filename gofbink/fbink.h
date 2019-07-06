@@ -80,7 +80,10 @@ typedef enum
 	FATTY,             // fatty
 	SPLEEN,            // spleen
 	TEWI,              // tewi (medium)
-	TEWIB              // tewi (bold)
+	TEWIB,             // tewi (bold)
+	TOPAZ,             // Topaz+ A1200
+	MICROKNIGHT,       // MicroKnight+
+	VGA                // IBM VGA 8x16
 } FONT_INDEX_T;
 
 // List of supported font styles
@@ -184,33 +187,36 @@ typedef enum
 // A struct to dump FBInk's internal state into, like fbink_state_dump() would, but in C ;)
 typedef struct
 {
-	long int    user_hz;                      // USER_HZ
-	const char* restrict font_name;           // fbink_cfg->fontname
-	uint32_t             view_width;          // viewWidth
-	uint32_t             view_height;         // viewHeight
-	uint32_t             screen_width;        // screenWidth
-	uint32_t             screen_height;       // screenHeight
-	uint32_t             bpp;                 // vInfo.bits_per_pixel
-	char                 device_name[16];     // deviceQuirks.deviceName
-	unsigned short int   device_id;           // deviceQuirks.deviceId
-	uint8_t              pen_fg_color;        // penFGColor
-	uint8_t              pen_bg_color;        // penFGColor
-	unsigned short int   screen_dpi;          // deviceQuirks.screenDPI
-	unsigned short int   font_w;              // FONTW
-	unsigned short int   font_h;              // FONTH
-	unsigned short int   max_cols;            // MAXCOLS
-	unsigned short int   max_rows;            // MAXROWS
-	uint8_t              view_hori_origin;    // viewHoriOrigin
-	uint8_t              view_vert_origin;    // viewVertOrigin
-	uint8_t              view_vert_offset;    // viewVertOffset
-	uint8_t              fontsize_mult;       // FONTSIZE_MULT
-	uint8_t              glyph_width;         // glyphWidth
-	uint8_t              glyph_height;        // glyphHeight
-	bool                 is_perfect_fit;      // deviceQuirks.isPerfectFit
-	bool                 is_kobo_non_mt;      // deviceQuirks.isKoboNonMT
-	uint8_t              ntx_boot_rota;       // deviceQuirks.ntxBootRota
-	uint8_t              ntx_rota_quirk;      // deviceQuirks.ntxRotaQuirk
-	bool                 can_rotate;          // deviceQuirks.canRotate
+	long int    user_hz;                         // USER_HZ
+	const char* restrict font_name;              // fbink_cfg->fontname
+	uint32_t             view_width;             // viewWidth
+	uint32_t             view_height;            // viewHeight
+	uint32_t             screen_width;           // screenWidth
+	uint32_t             screen_height;          // screenHeight
+	uint32_t             bpp;                    // vInfo.bits_per_pixel
+	char                 device_name[16];        // deviceQuirks.deviceName
+	char                 device_codename[16];    // deviceQuirks.deviceCodename
+	char                 device_platform[16];    // deviceQuirks.devicePlatform
+	unsigned short int   device_id;              // deviceQuirks.deviceId
+	uint8_t              pen_fg_color;           // penFGColor
+	uint8_t              pen_bg_color;           // penFGColor
+	unsigned short int   screen_dpi;             // deviceQuirks.screenDPI
+	unsigned short int   font_w;                 // FONTW
+	unsigned short int   font_h;                 // FONTH
+	unsigned short int   max_cols;               // MAXCOLS
+	unsigned short int   max_rows;               // MAXROWS
+	uint8_t              view_hori_origin;       // viewHoriOrigin
+	uint8_t              view_vert_origin;       // viewVertOrigin
+	uint8_t              view_vert_offset;       // viewVertOffset
+	uint8_t              fontsize_mult;          // FONTSIZE_MULT
+	uint8_t              glyph_width;            // glyphWidth
+	uint8_t              glyph_height;           // glyphHeight
+	bool                 is_perfect_fit;         // deviceQuirks.isPerfectFit
+	bool                 is_kobo_non_mt;         // deviceQuirks.isKoboNonMT
+	uint8_t              ntx_boot_rota;          // deviceQuirks.ntxBootRota
+	uint8_t              ntx_rota_quirk;         // deviceQuirks.ntxRotaQuirk
+	uint8_t              current_rota;           // vInfo.rotate
+	bool                 can_rotate;             // deviceQuirks.canRotate
 } FBInkState;
 
 // What a FBInk config should look like. Perfectly sane when fully zero-initialized.
@@ -247,7 +253,8 @@ typedef struct
 				    // If only *one* of them is left at 0, the image's aspect ratio will be honored.
 				    // If *either* of them is set to < -1, fit to screen while respecting AR.
 				    // NOTE: Scaling is inherently costly. I highly recommend not relying on it,
-				    //       preferring instead proper preprocessing of your input images.
+				    //       preferring instead proper preprocessing of your input images,
+				    //       c.f., https://www.mobileread.com/forums/showpost.php?p=3728291&postcount=17
 	uint8_t wfm_mode;           // Request a specific waveform mode (c.f., WFM_MODE_INDEX_T enum; defaults to AUTO)
 	bool    is_dithered;        // Request (ordered) hardware dithering (if supported).
 	bool    sw_dithering;       // Request (ordered) *software* dithering when printing an image.
@@ -257,6 +264,7 @@ typedef struct
 	bool no_refresh;            // Skip actually refreshing the eInk screen (useful when drawing in batch)
 } FBInkConfig;
 
+// Same, but for OT/TTF specific stuff
 typedef struct
 {
 	struct
@@ -266,11 +274,30 @@ typedef struct
 		short int left;      // Left margin in pixels (if negative, count backwards from the right edge)
 		short int right;     // Right margin in pixels (supports negative values, too)
 	} margins;
-	unsigned short int size_pt;         // Size of text in points. If not set (0), defaults to 12pt
-	bool               is_centered;     // Horizontal centering
-	bool               is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
+	float size_pt;         // Size of text in points. If not set (0.0f), defaults to 12pt
+	bool  is_centered;     // Horizontal centering
+	bool  is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
+	bool  compute_only;    // Abort early after the line-break computation pass (no actual rendering).
+	//                                     NOTE: This is early enough that it will *NOT* be able to predict *every*
+	//                                           potential case of truncation.
+	//                                           In particular, broken metrics may yield a late truncation at rendering time.
+	bool no_truncation;    // Abort as early as possible (but not necessarily before the rendering pass),
+			       // if the string cannot fit in the available area at the current font size.
 } FBInkOTConfig;
 
+// Optionally used with fbink_print_ot, if you need more details about the line-breaking computations,
+// for instance if you want to dynamically compute a best-fit font size for n lines in a specific area.
+typedef struct
+{
+	unsigned short int
+			   computed_lines;    // Expected amount of lines needed to print the string, according to font metrics.
+	unsigned short int rendered_lines;    // Actually rendered amount of lines
+					      // Will stay 0 in case of an early abort (or a compute_only run),
+	//                                       or < computed_lines in case of an unexpected truncation due to broken metrics.
+	bool truncated;    // true if the string was truncated (at computation or rendering time).
+} FBInkOTFit;
+
+// For use with fbink_dump & fbink_restore
 typedef struct
 {
 	unsigned char* restrict data;
@@ -283,6 +310,15 @@ typedef struct
 	uint8_t                 bpp;
 	bool                    is_full;
 } FBInkDump;
+
+// This maps to an mxcfb rectangle, used for fbink_get_last_rect
+typedef struct
+{
+	unsigned short int top;     // y
+	unsigned short int left;    // x
+	unsigned short int width;
+	unsigned short int height;
+} FBInkRect;
 
 // NOTE: Unless otherwise specified,
 //       stuff returns a negative value (usually -(EXIT_FAILURE)) on failure & EXIT_SUCCESS otherwise ;).
@@ -300,8 +336,9 @@ FBINK_API int fbink_open(void);
 FBINK_API int fbink_close(int fbfd);
 
 // Initialize internal variables keeping track of the framebuffer's configuration and state, as well as the device's hardware.
-// MUST be called at least *once* before any fbink_print* functions.
-// CAN safely be called multiple times, but doing so is only necessary if the framebuffer's state has changed,
+// MUST be called at least *once* before any fbink_print* or fbink dump/restore functions.
+// CAN safely be called multiple times,
+//     but doing so is only necessary if the framebuffer's state has changed (although fbink_reinit is preferred in this case),
 //     or if you modified one of the FBInkConfig fields that affects its results (listed below).
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call
@@ -311,12 +348,17 @@ FBINK_API int fbink_close(int fbfd);
 //				no_viewport, is_verbose & is_quiet
 //				MUST be set beforehand.
 //				This means you MUST call fbink_init() again when you update them, too!
+//				(This also means the effects from those fields "stick" across the lifetime of your application,
+//				or until a subsequent fbink_init() (or effective fbink_reinit()) call gets fed different values).
 // NOTE: By virtue of, well, setting global variables, do NOT consider this thread-safe.
 //       The rest of the API should be, though, so make sure you init in your main thread *before* threading begins...
-// NOTE: On devices where the fb state can change (i.e., Kobos switching between 16bpp & 32bpp),
-//       this needs to be called as many times as necessary to ensure that every following fbink_* call will be made
-//       against a fb state that matches the state it was in during the last fbink_init() call...
-//       c.f., KFMon's handling of this via fbink_is_fb_quirky() to detect the initial 16bpp -> 32bpp switch.
+// NOTE: If you just need to make sure the framebuffer state is still up to date before an fbink_* call,
+//       (f.g., because you're running on a Kobo, which may switch from 16bpp to 32bpp, or simply change orientation),
+//       prefer using fbink_reinit instead of calling fbink_init *again*, as it's tailored for this use case.
+//       c.f., KFMon for an example of this use case in the wild.
+// NOTE: You can perfectly well keep a few different FBInkConfig structs around, instead of modifying the same one over and over.
+//       Just remember that some fields *require* an fbink_init() call to be taken into account (see above),
+//       but if the only fields that differ don't fall into that category, you do *NOT* need an fbink_init() per FBInkConfig...
 FBINK_API int fbink_init(int fbfd, const FBInkConfig* restrict fbink_cfg);
 
 // Add an OpenType font to FBInk. Note that at least one font must be added in order to use fbink_print_ot()
@@ -324,7 +366,7 @@ FBINK_API int fbink_init(int fbfd, const FBInkConfig* restrict fbink_cfg);
 // filename:		The font file path. This should be a valid *.otf or *.ttf font
 // style:		Defines the specific style of the specified font (FNT_REGULAR, FNT_ITALIC, FNT_BOLD, FNT_BOLD_ITALIC)
 // NOTE: You MUST free the fonts loaded when you are done by calling fbink_free_ot_fonts()
-// NOTE: You may replace a font without first calling free
+// NOTE: You MAY replace a font without first calling free
 // NOTE: Default fonts are secreted away in /usr/java/lib/fonts on Kindle,
 //       and in /usr/local/Trolltech/QtEmbedded-4.6.2-arm/lib/fonts on Kobo,
 //       but you can't use the Kobo ones because they're obfuscated...
@@ -356,16 +398,23 @@ FBINK_API void fbink_get_state(const FBInkConfig* restrict fbink_cfg, FBInkState
 // fbink_cfg:		Pointer to an FBInkConfig struct
 FBINK_API int fbink_print(int fbfd, const char* restrict string, const FBInkConfig* restrict fbink_cfg);
 
-// Print a string using an OpenType font. Note the caller MUST init with fbink_init_ot() FIRST.
+// Print a string using an OpenType font. Note that the caller MUST init with fbink_init_ot() FIRST.
 // This function uses positive margins (in pixels) instead of rows/columns for positioning and setting the printable area.
 // Returns new top margin for use in subsequent calls, if the return value is positive.
-// 		A zero return value indicates there is no room left to print another row of text at the current
-// 		margins or font size.
+// NOTE: A zero return value indicates there is no room left to print another row of text at the current margins or font size.
 // Returns -(ERANGE) if the provided margins are out of range, or sum to < view height or width
 // Returns -(ENOSYS) if compiled with MINIMAL
 // Returns -(ENODAT) if fbink_init_ot() hasn't yet been called.
 // Returns -(EINVAL) if string is empty.
 // Returns -(EILSEQ) if string is not a valid UTF-8 sequence.
+// Returns -(ENOSPC) if no_truncation is true, and string needs to be truncated to fit in the available draw area.
+//		     NOTE: This *cannot* prevent *drawing* truncated content on screen in *every* case,
+//			   because broken metrics may skew our initial computations.
+//			   As such, if the intent is to compute a "best fit" font size,
+//			   no_truncation ought to be combined with no_refresh on eInk,
+//			   (as we otherwise do *NOT* inhibit the refresh, in order to preserve get_last_rect's accuracy).
+//			   You'll also probably want to do a cheaper compute_only pass first,
+//			   to catch more obviously predictable truncations.
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call
 // string:		UTF-8 encoded string to print
@@ -375,12 +424,17 @@ FBINK_API int fbink_print(int fbfd, const char* restrict string, const FBInkConf
 //				is_overlay, is_fgless, is_bgless, fg_color, bg_color, valign, halign,
 //				wfm_mode, is_dithered, is_nightmode, no_refresh will be honored.
 //				Pass a NULL pointer if unneeded.
+// fit:			Optional pointer to an FBInkOTFit struct.
+//				If set, it will be used to return information about the amount of lines needed to render
+//				the string at the requested font size, and whether it was truncated or not.
+//				Pass a NULL pointer if unneeded.
 // NOTE: Alignment is relative to the printable area, as defined by the margins.
 //       As such, it only makes sense in the context of a single, specific print call.
 FBINK_API int fbink_print_ot(int         fbfd,
 			     const char* restrict string,
 			     const FBInkOTConfig* restrict cfg,
-			     const FBInkConfig* restrict fbink_cfg);
+			     const FBInkConfig* restrict fbink_cfg,
+			     FBInkOTFit* restrict fit);
 
 // Brings printf formatting to fbink_print and fbink_print_ot ;).
 // fbfd:		Open file descriptor to the framebuffer character device,
@@ -427,7 +481,7 @@ FBINK_API int fbink_refresh(int                fbfd,
 //       to allow them to call fbink_init again at specific points only (instead of enforcing a reinit on every print).
 //       This is of interest on a few devices, where trying to print based on a "stale" init state would fail,
 //       or produce unwanted results (f.g., rotation).
-// NOTE: Right now, this only checks for the isNTX16bLandscape Device Quirk,
+// NOTE: Right now, this only checks for the isNTX16bLandscape device quirk,
 //       because that's the only one that is not permanent (i.e., hardware specific),
 //       but instead software specific (here, because of pickel).
 //       In practical terms, this means the Kobo's fb is in 16bpp mode, with its origin in the top-right corner (i.e., Landscape).
@@ -444,6 +498,8 @@ FBINK_API bool fbink_is_fb_quirky(void) __attribute__((pure, deprecated));
 // NOTE: This obviously supercedes fbink_is_fb_quirky, because it should be smarter,
 //       by catching more scenarios where a reinit would be useful,
 //       and it can avoid running the same ioctl twice when an ioctl already done by init is needed to detect a state change.
+// NOTE: Using fbink_reinit does NOT lift the requirement of having to run fbink_init at least ONCE,
+//       i.e., you cannot replace the initial fbink_init call by fbink_reinit!
 // Returns -(ENOSYS) on Kindle, where this is not needed
 // fdfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call
@@ -479,13 +535,16 @@ FBINK_API int fbink_print_activity_bar(int fbfd, uint8_t progress, const FBInkCo
 //       Generally, that'd be a Grayscale (color-type 0) PNG, ideally dithered down to the eInk palette
 //       (c.f., https://www.mobileread.com/forums/showpost.php?p=3728291&postcount=17).
 //       If you can't pre-process your images, dithering can be handled by the hardware on recent devices (c.f. is_dithered),
-//       but the pixel format still matters:
+//       or by FBInk itself (c.f., sw_dithering), but the pixel format still matters:
 //       On a 32bpp fb, Gray will still be faster than RGB.
 //       On a 8bpp fb, try to only use Gray for the best performance possible,
 //       as an RGB input will need to be grayscaled, making it slower than if it were rendered on a 32bpp fb!
 //       Try to avoid using a 16bpp fb, as conversion to/from RGB565 will generally slow things down.
 //       If you know you won't need to handle an alpha channel, don't forget ignore_alpha, too ;).
 //       As expected, the fastest codepath is Gray on an 8bpp fb ;).
+// NOTE: There's a direct copy fast path in the very specific case of printing a Grayscale image *without* alpha,
+//       inversion or dithering on an 8bpp fb.
+// NOTE: No such luck on 32bpp, because of a required RGB <-> BGR conversion ;).
 FBINK_API int fbink_print_image(int                fbfd,
 				const char*        filename,
 				short int          x_off,
@@ -580,6 +639,20 @@ FBINK_API int fbink_region_dump(int                fbfd,
 //       Call fbink_reinit first if you really want to make sure bitdepth/rotation still match.
 // NOTE: This does *NOT* free data.dump!
 FBINK_API int fbink_restore(int fbfd, const FBInkConfig* restrict fbink_cfg, const FBInkDump* restrict dump);
+
+// Return the coordinates & dimensions of the last thing that was *drawn*
+// Returns an empty (i.e., {0, 0, 0, 0}) rectangle if nothing was drawn.
+// NOTE: These are unfiltered *framebuffer* coordinates.
+//       If your goal is to use that for input detection, mapping that to input coordinates is your responsibility.
+//       On Kobo, fbink_get_state should contain enough data to help you figure out what kinds of quirks you need to account for.
+// NOTE: While this *generally* maps to the refresh region, this does not always hold true:
+//       this will get updated regardless of no_refresh,
+//       and will ignore what is_flashing might do to make the refresh region fullscreen.
+//       i.e., it corresponds to what's drawn to the fb, not necessarily to what's refreshed on screen.
+// NOTE: On devices where we may fudge the coordinates to account for broken rotation (i.e., most Kobos @ 16bpp),
+//       these are the *rotated* coordinates!
+//       i.e., they *will* match with what we actually send to mxcfb (and where we actually drew on the fb)!
+FBINK_API FBInkRect fbink_get_last_rect(void);
 
 // Scan the screen for Kobo's "Connect" button in the "USB plugged in" popup,
 // and optionally generate an input event to press that button.
