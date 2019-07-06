@@ -68,6 +68,9 @@ const (
 	Spleen
 	Tewi
 	TewiB
+	Topaz
+	MicroKnight
+	VGA
 )
 
 // FontStyle type
@@ -195,6 +198,7 @@ const (
 	eTime       = CexitCode(C.ETIME) * -1
 	eInval      = CexitCode(C.EINVAL) * -1
 	eIlSeq      = CexitCode(C.EILSEQ) * -1
+	eNoSpc      = CexitCode(C.ENOSPC) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -212,6 +216,8 @@ type FBInkState struct {
 	ScreenHeight   uint32
 	BPP            uint32
 	DeviceName     string
+	DeviceCodename string
+	DevicePlatform string
 	DeviceId       uint16
 	PenFGcolor     uint8
 	PenBGcolor     uint8
@@ -230,6 +236,7 @@ type FBInkState struct {
 	IsKoboNonMT    bool
 	NTXBootRota    uint8
 	NTXRotaQuirk   NTXRota
+	CurrentRota    uint8
 	CanRotate      bool
 }
 
@@ -276,9 +283,17 @@ type FBInkOTConfig struct {
 		Left   int16
 		Right  int16
 	}
-	SizePt      uint16
-	IsCentred   bool
-	IsFormatted bool
+	SizePt       float32
+	IsCentred    bool
+	IsFormatted  bool
+	ComputeOnly  bool
+	NoTruncation bool
+}
+
+type FBInkOTFit struct {
+	ComputedLines  uint16
+	RenderedLines  uint16
+	Truncated      bool
 }
 
 type FBInkDump struct {
@@ -291,6 +306,13 @@ type FBInkDump struct {
 	Rota   uint8
 	BPP    uint8
 	IsFull bool
+}
+
+type FBInkRect struct {
+	Top    uint16
+	Left   uint16
+	Width  uint16
+	Height uint16
 }
 
 // RestrictedConfig is a struct which configures the options that require
@@ -322,6 +344,8 @@ func createError(retValue CexitCode) error {
 		return errors.New("EINVAL")
 	case eIlSeq:
 		return errors.New("EILSEQ")
+	case eNoSpc:
+		return errors.New("ENOSPC")
 	default:
 		return nil
 	}
@@ -390,9 +414,11 @@ func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
-	otCfgC.size_pt = C.ushort(otCfg.SizePt)
+	otCfgC.size_pt = C.float(otCfg.SizePt)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
 	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
+	otCfgC.compute_only = C.bool(otCfg.ComputeOnly)
+	otCfgC.no_truncation = C.bool(otCfg.NoTruncation)
 	return otCfgC
 }
 
@@ -481,6 +507,8 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.ScreenHeight = uint32(stateC.screen_height)
 	state.BPP = uint32(stateC.bpp)
 	state.DeviceName = C.GoString(&stateC.device_name[0])
+	state.DeviceCodename = C.GoString(&stateC.device_codename[0])
+	state.DevicePlatform = C.GoString(&stateC.device_platform[0])
 	state.DeviceId = uint16(stateC.device_id)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
@@ -499,6 +527,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
 	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
 	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
+	state.CurrentRota = uint8(stateC.current_rota)
 	state.CanRotate = bool(stateC.can_rotate)
 }
 
@@ -519,7 +548,7 @@ func (f *FBInk) PrintOT(str string, otCfg *FBInkOTConfig, fbCfg *FBInkConfig) (i
 	otCfgC := f.newOTConfig(otCfg)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	res := C.fbink_print_ot(f.fbfd, strC, &otCfgC, &fbCfgC)
+	res := C.fbink_print_ot(f.fbfd, strC, &otCfgC, &fbCfgC, nil)
 	return int(res), createError(CexitCode(res))
 }
 
@@ -685,6 +714,7 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
 }
 
 // TODO: fbink_dump, fbink_region_dump, fbink_restore
+// TODO: fbink_get_last_rect
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
