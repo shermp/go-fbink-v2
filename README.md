@@ -22,7 +22,7 @@ Note, you will need to enable cgo support when building your project, by setting
 
 A simple example program has been provided in `example/main.go`
 
-You can refer to the original documentation found in the `fbink.h` file, which can be found at `fbinkinclude/fbink.h`.
+You can refer to the original documentation found in the `fbink.h` file, which can be found at `gofbink/fbink.h`.
 
 The primary usage difference from FBInk is that where appropriate, go-fbink returns an error, or nil, rather than an integer to indicate success or failure. Note that the error string contains the C error code name (eg: "EXIT_FAILURE").
 
