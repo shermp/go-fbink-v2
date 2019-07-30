@@ -284,6 +284,7 @@ type FBInkOTConfig struct {
 		Right  int16
 	}
 	SizePt       float32
+	SizePx       uint16
 	IsCentred    bool
 	IsFormatted  bool
 	ComputeOnly  bool
@@ -415,6 +416,7 @@ func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
 	otCfgC.size_pt = C.float(otCfg.SizePt)
+	otCfgC.size_px = C.uint16_t(otCfg.SizePx)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
 	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
 	otCfgC.compute_only = C.bool(otCfg.ComputeOnly)
