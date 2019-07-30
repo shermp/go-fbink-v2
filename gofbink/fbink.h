@@ -1,21 +1,22 @@
 /*
 	FBInk: FrameBuffer eInker, a tool to print text & images on eInk devices (Kobo/Kindle)
 	Copyright (C) 2018-2019 NiLuJe <ninuje@gmail.com>
+	SPDX-License-Identifier: GPL-3.0-or-later
 
 	----
 
 	This program is free software: you can redistribute it and/or modify
-	it under the terms of the GNU Affero General Public License as
-	published by the Free Software Foundation, either version 3 of the
-	License, or (at your option) any later version.
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU Affero General Public License for more details.
+	GNU General Public License for more details.
 
-	You should have received a copy of the GNU Affero General Public License
-	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #ifndef __FBINK_H
@@ -274,10 +275,11 @@ typedef struct
 		short int left;      // Left margin in pixels (if negative, count backwards from the right edge)
 		short int right;     // Right margin in pixels (supports negative values, too)
 	} margins;
-	float size_pt;         // Size of text in points. If not set (0.0f), defaults to 12pt
-	bool  is_centered;     // Horizontal centering
-	bool  is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
-	bool  compute_only;    // Abort early after the line-break computation pass (no actual rendering).
+	float              size_pt;         // Size of text in points. If not set (0.0f), defaults to 12pt
+	unsigned short int size_px;         // Size of text in pixels. Optional, but takes precedence over size_pt.
+	bool               is_centered;     // Horizontal centering
+	bool               is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
+	bool               compute_only;    // Abort early after the line-break computation pass (no actual rendering).
 	//                                     NOTE: This is early enough that it will *NOT* be able to predict *every*
 	//                                           potential case of truncation.
 	//                                           In particular, broken metrics may yield a late truncation at rendering time.
@@ -333,6 +335,7 @@ FBINK_API int fbink_open(void);
 // Unmap the framebuffer (if need be) and close its file descriptor
 // (c.f., the recap at the bottom if you're concerned about mmap handling).
 // fbfd:		Open file descriptor to the framebuffer character device, as returned by fbink_open()
+// NOTE: This is safe to call if fbfd is FBFD_AUTO (i.e., -1, which means this is also safe to call after an fbink_open failure).
 FBINK_API int fbink_close(int fbfd);
 
 // Initialize internal variables keeping track of the framebuffer's configuration and state, as well as the device's hardware.
