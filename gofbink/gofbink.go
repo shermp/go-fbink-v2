@@ -1,9 +1,9 @@
 /*
 	FBInk: FrameBuffer eInker, a tool to print text & images on eInk devices (Kobo/Kindle)
-	Copyright (C) 2018 NiLuJe <ninuje@gmail.com>
+	Copyright (C) 2018-2019 NiLuJe <ninuje@gmail.com>
 
 	go-fbink: A Go wrapper for FBInk
-	Copyright (C) 2018 Sherman Perry
+	Copyright (C) 2018-2019 Sherman Perry
 
 	----
 
