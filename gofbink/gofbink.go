@@ -715,7 +715,7 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
 	return createError(res)
 }
 
-// TODO: fbink_dump, fbink_region_dump, fbink_restore
+// TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
 // TODO: fbink_get_last_rect
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
