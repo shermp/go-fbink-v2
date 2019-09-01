@@ -208,36 +208,37 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
-	UserHZ         int
-	FontName       string
-	ViewWidth      uint32
-	ViewHeight     uint32
-	ScreenWidth    uint32
-	ScreenHeight   uint32
-	BPP            uint32
-	DeviceName     string
-	DeviceCodename string
-	DevicePlatform string
-	DeviceId       uint16
-	PenFGcolor     uint8
-	PenBGcolor     uint8
-	ScreenDPI      uint16
-	FontW          uint16
-	FontH          uint16
-	MaxCols        uint16
-	MaxRows        uint16
-	ViewHoriOrigin uint8
-	ViewVertOrigin uint8
-	ViewVertOffset uint8
-	FontSizeMult   uint8
-	GlyphWidth     uint8
-	GlyphHeight    uint8
-	IsPerfectFit   bool
-	IsKoboNonMT    bool
-	NTXBootRota    uint8
-	NTXRotaQuirk   NTXRota
-	CurrentRota    uint8
-	CanRotate      bool
+	UserHZ               int
+	FontName             string
+	ViewWidth            uint32
+	ViewHeight           uint32
+	ScreenWidth          uint32
+	ScreenHeight         uint32
+	BPP                  uint32
+	DeviceName           string
+	DeviceCodename       string
+	DevicePlatform       string
+	DeviceId             uint16
+	PenFGcolor           uint8
+	PenBGcolor           uint8
+	ScreenDPI            uint16
+	FontW                uint16
+	FontH                uint16
+	MaxCols              uint16
+	MaxRows              uint16
+	ViewHoriOrigin       uint8
+	ViewVertOrigin       uint8
+	ViewVertOffset       uint8
+	FontSizeMult         uint8
+	GlyphWidth           uint8
+	GlyphHeight          uint8
+	IsPerfectFit         bool
+	IsKoboNonMT          bool
+	NTXBootRota          uint8
+	NTXRotaQuirk         NTXRota
+	IsNTXQuirkyLandscape bool
+	CurrentRota          uint8
+	CanRotate            bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -297,23 +298,21 @@ type FBInkOTFit struct {
 	Truncated      bool
 }
 
+type FBInkRect struct {
+	Left   uint16
+	Top    uint16
+	Width  uint16
+	Height uint16
+}
+
 type FBInkDump struct {
 	data   *uint8
 	Size   uint
-	x      uint16
-	y      uint16
-	w      uint16
-	h      uint16
+	Area   FBInkRect
+	Clip   FBInkRect
 	Rota   uint8
 	BPP    uint8
 	IsFull bool
-}
-
-type FBInkRect struct {
-	Top    uint16
-	Left   uint16
-	Width  uint16
-	Height uint16
 }
 
 // RestrictedConfig is a struct which configures the options that require
@@ -529,6 +528,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
 	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
 	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
+	state.IsNTXQuirkyLandscape = bool(stateC.is_ntx_quirky_landscape)
 	state.CurrentRota = uint8(stateC.current_rota)
 	state.CanRotate = bool(stateC.can_rotate)
 }
