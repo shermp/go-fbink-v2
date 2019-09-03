@@ -1,9 +1,9 @@
 /*
 	FBInk: FrameBuffer eInker, a tool to print text & images on eInk devices (Kobo/Kindle)
-	Copyright (C) 2018 NiLuJe <ninuje@gmail.com>
+	Copyright (C) 2018-2019 NiLuJe <ninuje@gmail.com>
 
 	go-fbink: A Go wrapper for FBInk
-	Copyright (C) 2018 Sherman Perry
+	Copyright (C) 2018-2019 Sherman Perry
 
 	----
 
@@ -68,6 +68,9 @@ const (
 	Spleen
 	Tewi
 	TewiB
+	Topaz
+	MicroKnight
+	VGA
 )
 
 // FontStyle type
@@ -195,6 +198,7 @@ const (
 	eTime       = CexitCode(C.ETIME) * -1
 	eInval      = CexitCode(C.EINVAL) * -1
 	eIlSeq      = CexitCode(C.EILSEQ) * -1
+	eNoSpc      = CexitCode(C.ENOSPC) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -204,33 +208,37 @@ const FBFDauto = int(C.FBFD_AUTO)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
 type FBInkState struct {
-	UserHZ         int
-	FontName       string
-	ViewWidth      uint32
-	ViewHeight     uint32
-	ScreenWidth    uint32
-	ScreenHeight   uint32
-	BPP            uint32
-	DeviceName     string
-	DeviceId       uint16
-	PenFGcolor     uint8
-	PenBGcolor     uint8
-	ScreenDPI      uint16
-	FontW          uint16
-	FontH          uint16
-	MaxCols        uint16
-	MaxRows        uint16
-	ViewHoriOrigin uint8
-	ViewVertOrigin uint8
-	ViewVertOffset uint8
-	FontSizeMult   uint8
-	GlyphWidth     uint8
-	GlyphHeight    uint8
-	IsPerfectFit   bool
-	IsKoboNonMT    bool
-	NTXBootRota    uint8
-	NTXRotaQuirk   NTXRota
-	CanRotate      bool
+	UserHZ               int
+	FontName             string
+	ViewWidth            uint32
+	ViewHeight           uint32
+	ScreenWidth          uint32
+	ScreenHeight         uint32
+	BPP                  uint32
+	DeviceName           string
+	DeviceCodename       string
+	DevicePlatform       string
+	DeviceId             uint16
+	PenFGcolor           uint8
+	PenBGcolor           uint8
+	ScreenDPI            uint16
+	FontW                uint16
+	FontH                uint16
+	MaxCols              uint16
+	MaxRows              uint16
+	ViewHoriOrigin       uint8
+	ViewVertOrigin       uint8
+	ViewVertOffset       uint8
+	FontSizeMult         uint8
+	GlyphWidth           uint8
+	GlyphHeight          uint8
+	IsPerfectFit         bool
+	IsKoboNonMT          bool
+	NTXBootRota          uint8
+	NTXRotaQuirk         NTXRota
+	IsNTXQuirkyLandscape bool
+	CurrentRota          uint8
+	CanRotate            bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -276,18 +284,32 @@ type FBInkOTConfig struct {
 		Left   int16
 		Right  int16
 	}
-	SizePt      uint16
-	IsCentred   bool
-	IsFormatted bool
+	SizePt       float32
+	SizePx       uint16
+	IsCentred    bool
+	IsFormatted  bool
+	ComputeOnly  bool
+	NoTruncation bool
+}
+
+type FBInkOTFit struct {
+	ComputedLines  uint16
+	RenderedLines  uint16
+	Truncated      bool
+}
+
+type FBInkRect struct {
+	Left   uint16
+	Top    uint16
+	Width  uint16
+	Height uint16
 }
 
 type FBInkDump struct {
 	data   *uint8
 	Size   uint
-	x      uint16
-	y      uint16
-	w      uint16
-	h      uint16
+	Area   FBInkRect
+	Clip   FBInkRect
 	Rota   uint8
 	BPP    uint8
 	IsFull bool
@@ -322,6 +344,8 @@ func createError(retValue CexitCode) error {
 		return errors.New("EINVAL")
 	case eIlSeq:
 		return errors.New("EILSEQ")
+	case eNoSpc:
+		return errors.New("ENOSPC")
 	default:
 		return nil
 	}
@@ -390,9 +414,12 @@ func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
-	otCfgC.size_pt = C.ushort(otCfg.SizePt)
+	otCfgC.size_pt = C.float(otCfg.SizePt)
+	otCfgC.size_px = C.uint16_t(otCfg.SizePx)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
 	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
+	otCfgC.compute_only = C.bool(otCfg.ComputeOnly)
+	otCfgC.no_truncation = C.bool(otCfg.NoTruncation)
 	return otCfgC
 }
 
@@ -481,6 +508,8 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.ScreenHeight = uint32(stateC.screen_height)
 	state.BPP = uint32(stateC.bpp)
 	state.DeviceName = C.GoString(&stateC.device_name[0])
+	state.DeviceCodename = C.GoString(&stateC.device_codename[0])
+	state.DevicePlatform = C.GoString(&stateC.device_platform[0])
 	state.DeviceId = uint16(stateC.device_id)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
@@ -499,6 +528,8 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
 	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
 	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
+	state.IsNTXQuirkyLandscape = bool(stateC.is_ntx_quirky_landscape)
+	state.CurrentRota = uint8(stateC.current_rota)
 	state.CanRotate = bool(stateC.can_rotate)
 }
 
@@ -519,7 +550,7 @@ func (f *FBInk) PrintOT(str string, otCfg *FBInkOTConfig, fbCfg *FBInkConfig) (i
 	otCfgC := f.newOTConfig(otCfg)
 	strC := C.CString(str)
 	defer C.free(unsafe.Pointer(strC))
-	res := C.fbink_print_ot(f.fbfd, strC, &otCfgC, &fbCfgC)
+	res := C.fbink_print_ot(f.fbfd, strC, &otCfgC, &fbCfgC, nil)
 	return int(res), createError(CexitCode(res))
 }
 
@@ -684,7 +715,8 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
 	return createError(res)
 }
 
-// TODO: fbink_dump, fbink_region_dump, fbink_restore
+// TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
+// TODO: fbink_get_last_rect
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
