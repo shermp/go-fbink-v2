@@ -56,6 +56,8 @@
 //
 // Magic number for automatic fbfd handling
 #define FBFD_AUTO -1
+// As 0 is an invalid marker value, we can coopt it to try to retrieve our own last sent marker
+#define LAST_MARKER 0U
 
 //
 // List of available fonts
@@ -472,6 +474,7 @@ FBINK_API int fbink_printf(int                  fbfd,
 //
 // A simple wrapper around the internal screen refresh handling, without requiring you to include einkfb/mxcfb headers.
 // NOTE: Unlike FBInkRect, we *do* honor the original mxcfb rect order here (top before left).
+// Returns -(ENOSYS) on non-eInk devices (i.e., pure Linux builds)
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened for the duration of this call.
 // region_top:		top (y) field of an mxcfb rectangle.
@@ -495,6 +498,63 @@ FBINK_API int fbink_refresh(int                fbfd,
 			    uint32_t           region_height,
 			    uint8_t            dithering_mode,
 			    const FBInkConfig* restrict fbink_cfg);
+
+// A simple wrapper around the MXCFB_WAIT_FOR_UPDATE_SUBMISSION ioctl, without requiring you to include mxcfb headers.
+// Returns -(EINVAL) when the update marker is invalid.
+// Returns -(ENOSYS) on devices where this ioctl is unsupported.
+// NOTE: It is only implemented by Kindle kernels (K5+)!
+// fbfd:		Open file descriptor to the framebuffer character device,
+//				if set to FBFD_AUTO, the fb is opened for the duration of this call.
+// marker:		The update marker you want to wait for.
+// NOTE: If marker is set to LAST_MARKER (0U), the one from the last update sent by this FBInk session will be used instead.
+//       If there aren't any, the call will fail and return -(EINVAL)!
+// NOTE: Waiting for a random marker *should* simply return early.
+FBINK_API int fbink_wait_for_submission(int fbfd, uint32_t marker);
+
+// A simple wrapper around the MXCFB_WAIT_FOR_UPDATE_COMPLETE ioctl, without requiring you to include mxcfb headers.
+// Returns -(EINVAL) when the update marker is invalid.
+// Returns -(ENOSYS) on non-eInk devices (i.e., pure Linux builds).
+// fbfd:		Open file descriptor to the framebuffer character device,
+//				if set to FBFD_AUTO, the fb is opened for the duration of this call.
+// marker:		The update marker you want to wait for.
+// NOTE: If marker is set to LAST_MARKER (0U), the one from the last update sent by this FBInk session will be used instead.
+//       If there aren't any, the call will fail and return -(EINVAL)!
+// NOTE: Waiting for a random marker *should* simply return early.
+FBINK_API int fbink_wait_for_complete(int fbfd, uint32_t marker);
+// NOTE: For most single-threaded use-cases, you *probably* don't need to bother with this,
+//       as all your writes to the framebuffer should obviously be serialized.
+// NOTE: All our target devices should default to the QUEUE_AND_MERGE update scheme,
+//       which means the EPDC itself will attempt to bundle updates together in order to do the least amount of work possible.
+//       (By work, I mean moving the eInk capsules around, i.e., limiting to amount of effective refreshes).
+//       A fun example of this can be seen with the dump/restore tests in utils/dump.c:
+//       By default, it will call fbink_wait_for_complete at sensible times, but if you pass a random argument to it,
+//       it won't: the difference that makes in practcie should be extremely obvious, especially for the first set of tests!
+// NOTE: I encourage you to strace your stock reader to see how it makes use of those ioctls:
+//       they're mostly used before and/or after FULL (i.e., flashing) updates,
+//       to make sure they don't get affected by surrounding updates.
+//       They can also be used to more predictably fence A2 updates.
+//       In fact, for the most part, you can think of them as a kind of vsync fence.
+//       Be aware that the ioctl will block for (relatively) longer than it takes for the refresh to visually end,
+//       and that the delay depends for the most part on the waveform mode (flashing & region size have a much smaller impact).
+//       With some waveform modes (mainly A2/DU), it'll return significantly earlier if the region's fb content hasn't changed.
+// NOTE: See KOReader's mxc_update @ https://github.com/koreader/koreader-base/blob/master/ffi/framebuffer_mxcfb.lua
+//       for some fancier examples in a complex application, where one might want to wait for completion of previous updates
+//       right before sending a flashing one, for example.
+// NOTE: Prior to FBInk 1.20.0, we used to *enforce* a wait_for_complete *after* *every* flashing (FULL) update.
+//       This was originally done to mimic eips's behavior when displaying an image.
+//       While blocking right after a refresh made sense for a one-off CLI tool, it's different for API users:
+//       in most cases, it probably makes more sense to only block *before* the *following* flashing refresh,
+//       thus ensuring that the wait will be shorter (or near zero), since time has probably passed between those two refreshes.
+//       But, if you know that you won't be busy for a while after a flashing update, it might make sense to wait right after it,
+//       in order to avoid an ioctl on the next refresh that might end up hurting reactivity...
+//       Incidentally, as all of this depends on specific use-cases, this is why it is entirely left to the user,
+//       and why there's no compatibility flag in FBInkConfig to restore the FBInk < 1.20 behavior ;).
+
+// Return the update marker from the last *refresh* (explicit or implicit) done in this FBInk session.
+// NOTE: Returns LAST_MARKER (0U) if there wasn't any, or on non-eInk devices (i.e., pure Linux builds).
+// NOTE: Mainly useful if you want to do fairly fancy stuff with wait_for_complete/wait_for_submission,
+//       otherwise, simply passing LAST_MARKER to 'em should do the trick.
+FBINK_API uint32_t fbink_get_last_marker(void);
 
 //
 // Returns true if the device appears to be in a quirky framebuffer state that *may* require a reinit to produce sane results.
@@ -540,7 +600,7 @@ FBINK_API int fbink_print_progress_bar(int fbfd, uint8_t percentage, const FBInk
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call.
 // progress:		0-16 value to set the progress thumb's position in the bar.
-// fbink_cfg:		Pointer to an FBInkConfig struct (ignores is_overlay, is_bgless, is_fgless, col & hoffset;
+// fbink_cfg:		Pointer to an FBInkConfig struct (ignores is_overlay, is_fgless, col & hoffset;
 //				as well as is_centered & is_padded).
 FBINK_API int fbink_print_activity_bar(int fbfd, uint8_t progress, const FBInkConfig* restrict fbink_cfg);
 
