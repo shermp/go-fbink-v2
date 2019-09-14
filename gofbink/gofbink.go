@@ -204,6 +204,9 @@ const (
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
 
+// Automatic previous marker retrieval for use with WaitFor*
+const LastMarker = uint32(C.LAST_MARKER)
+
 // const exitSuccess = int(C.EXIT_SUCCESS)
 
 // FBInkState stores a snapshot of some of FBInk's internal variables
@@ -621,6 +624,29 @@ func (f *FBInk) Refresh(top, left, width, height uint32, ditherMode HWDither, cf
 	ditherModeC := C.uint8_t(ditherMode)
 	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, ditherModeC, &cfgC))
 	return createError(res)
+}
+
+// Waits for the submission of a specific refresh (Kindle only)
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) WaitForSubmission(marker uint32) error {
+	markerC := C.uint32_t(marker)
+	res := CexitCode(C.fbink_wait_for_submission(f.fbfd, markerC))
+	return createError(res)
+}
+
+// Waits for the completion of a specific refresh
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) WaitForCompletion(marker uint32) error {
+	markerC := C.uint32_t(marker)
+	res := CexitCode(C.fbink_wait_for_completion(f.fbfd, markerC))
+	return createError(res)
+}
+
+// Returns the marker from the last refresh sent
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) GetLastMarker() error {
+	res := C.fbink_get_last_marker()
+	return uint32(res), createError(CexitCode(res))
 }
 
 // // IsFBquirky tests for a quirky framebuffer state
