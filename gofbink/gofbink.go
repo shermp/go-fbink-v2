@@ -638,7 +638,7 @@ func (f *FBInk) WaitForSubmission(marker uint32) error {
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) WaitForCompletion(marker uint32) error {
 	markerC := C.uint32_t(marker)
-	res := CexitCode(C.fbink_wait_for_completion(f.fbfd, markerC))
+	res := CexitCode(C.fbink_wait_for_complete(f.fbfd, markerC))
 	return createError(res)
 }
 
