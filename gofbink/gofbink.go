@@ -183,6 +183,7 @@ const (
 	NTXRotaStraight NTXRota = iota
 	NTXRotaAllInverted
 	NTXRotaOddInverted
+	NTXRotaSane
 )
 
 // CexitCode type
