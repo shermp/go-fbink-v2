@@ -278,6 +278,7 @@ type FBInkConfig struct {
 	SWDithering  bool
 	IsNightmode  bool
 	NoRefresh    bool
+	toSyslog     bool
 }
 
 // FBInkOTConfig is a struct which configures OpenType specific options
@@ -330,6 +331,7 @@ type RestrictedConfig struct {
 	NoViewport bool
 	IsVerbose  bool
 	IsQuiet    bool
+	ToSyslog   bool
 }
 
 func createError(retValue CexitCode) error {
@@ -409,6 +411,7 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.sw_dithering = C.bool(cfg.SWDithering)
 	cfgC.is_nightmode = C.bool(cfg.IsNightmode)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
+	cfgC.to_syslog = C.bool(cfg.toSyslog)
 	return cfgC
 }
 
@@ -446,6 +449,8 @@ func (f *FBInk) UpdateRestricted(cfg *FBInkConfig, rCfg *RestrictedConfig) {
 	f.internCfg.isQuiet = rCfg.IsQuiet
 	cfg.isVerbose = rCfg.IsVerbose
 	f.internCfg.isVerbose = rCfg.IsVerbose
+	cfg.toSyslog = rCfg.ToSyslog
+	f.internCfg.toSyslog = rCfg.ToSyslog
 	f.Init(cfg)
 }
 
