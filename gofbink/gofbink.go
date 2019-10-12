@@ -650,7 +650,7 @@ func (f *FBInk) WaitForCompletion(marker uint32) error {
 
 // Returns the marker from the last refresh sent
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) GetLastMarker() error {
+func (f *FBInk) GetLastMarker() (uint32, error) {
 	res := C.fbink_get_last_marker()
 	return uint32(res), createError(CexitCode(res))
 }
