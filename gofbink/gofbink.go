@@ -183,6 +183,7 @@ const (
 	NTXRotaStraight NTXRota = iota
 	NTXRotaAllInverted
 	NTXRotaOddInverted
+	NTXRotaSane
 )
 
 // CexitCode type
@@ -203,6 +204,9 @@ const (
 
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
+
+// Automatic previous marker retrieval for use with WaitFor*
+const LastMarker = uint32(C.LAST_MARKER)
 
 // const exitSuccess = int(C.EXIT_SUCCESS)
 
@@ -274,6 +278,7 @@ type FBInkConfig struct {
 	SWDithering  bool
 	IsNightmode  bool
 	NoRefresh    bool
+	toSyslog     bool
 }
 
 // FBInkOTConfig is a struct which configures OpenType specific options
@@ -326,6 +331,7 @@ type RestrictedConfig struct {
 	NoViewport bool
 	IsVerbose  bool
 	IsQuiet    bool
+	ToSyslog   bool
 }
 
 func createError(retValue CexitCode) error {
@@ -405,6 +411,7 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.sw_dithering = C.bool(cfg.SWDithering)
 	cfgC.is_nightmode = C.bool(cfg.IsNightmode)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
+	cfgC.to_syslog = C.bool(cfg.toSyslog)
 	return cfgC
 }
 
@@ -442,6 +449,8 @@ func (f *FBInk) UpdateRestricted(cfg *FBInkConfig, rCfg *RestrictedConfig) {
 	f.internCfg.isQuiet = rCfg.IsQuiet
 	cfg.isVerbose = rCfg.IsVerbose
 	f.internCfg.isVerbose = rCfg.IsVerbose
+	cfg.toSyslog = rCfg.ToSyslog
+	f.internCfg.toSyslog = rCfg.ToSyslog
 	f.Init(cfg)
 }
 
@@ -621,6 +630,29 @@ func (f *FBInk) Refresh(top, left, width, height uint32, ditherMode HWDither, cf
 	ditherModeC := C.uint8_t(ditherMode)
 	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, ditherModeC, &cfgC))
 	return createError(res)
+}
+
+// Waits for the submission of a specific refresh (Kindle only)
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) WaitForSubmission(marker uint32) error {
+	markerC := C.uint32_t(marker)
+	res := CexitCode(C.fbink_wait_for_submission(f.fbfd, markerC))
+	return createError(res)
+}
+
+// Waits for the completion of a specific refresh
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) WaitForCompletion(marker uint32) error {
+	markerC := C.uint32_t(marker)
+	res := CexitCode(C.fbink_wait_for_complete(f.fbfd, markerC))
+	return createError(res)
+}
+
+// Returns the marker from the last refresh sent
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) GetLastMarker() error {
+	res := C.fbink_get_last_marker()
+	return uint32(res), createError(CexitCode(res))
 }
 
 // // IsFBquirky tests for a quirky framebuffer state

@@ -36,7 +36,7 @@
 // c.f., https://gcc.gnu.org/wiki/Visibility
 #if __GNUC__ >= 4
 #	define DLL_PUBLIC __attribute__((visibility("default")))
-#	define DLL_LOCAL __attribute__((visibility("hidden")))
+#	define DLL_LOCAL  __attribute__((visibility("hidden")))
 #else
 #	define DLL_PUBLIC
 #	define DLL_LOCAL
@@ -44,7 +44,7 @@
 
 // Are we actually building the shared lib?
 #ifdef FBINK_SHAREDLIB
-#	define FBINK_API DLL_PUBLIC
+#	define FBINK_API   DLL_PUBLIC
 #	define FBINK_LOCAL DLL_LOCAL
 #else
 #	define FBINK_API
@@ -56,6 +56,8 @@
 //
 // Magic number for automatic fbfd handling
 #define FBFD_AUTO -1
+// As 0 is an invalid marker value, we can coopt it to try to retrieve our own last sent marker
+#define LAST_MARKER 0U
 
 //
 // List of available fonts
@@ -184,16 +186,17 @@ typedef enum
 // List of NTX rotation quirk types (c.f., mxc_epdc_fb_check_var @ drivers/video/fbdev/mxc/mxc_epdc_v2_fb.c)...
 typedef enum
 {
-	NTX_ROTA_STRAIGHT = 0U,    // No shenanigans
+	NTX_ROTA_STRAIGHT = 0U,    // No shenanigans (at least as far as ioctls are concerned)
 	NTX_ROTA_ALL_INVERTED,     // Every rotation is inverted by the kernel
-	NTX_ROTA_ODD_INVERTED      // Only Landscape (odd) rotations are inverted by the kernel
+	NTX_ROTA_ODD_INVERTED,     // Only Landscape (odd) rotations are inverted by the kernel
+	NTX_ROTA_SANE              // NTX_ROTA_STRAIGHT + boot rota is UR + Panel is natively UR
 } NTX_ROTA_INDEX_T;
 
 //
 // A struct to dump FBInk's internal state into, like fbink_state_dump() would, but in C ;)
 typedef struct
 {
-	long int    user_hz;                 // USER_HZ (should pretty much always be 100)
+	long int             user_hz;        // USER_HZ (should pretty much always be 100)
 	const char* restrict font_name;      // fbink_cfg->fontname (c.f., fontname_to_string())
 	uint32_t             view_width;     // viewWidth (MAY be different than screen_width on devices with a viewport)
 	uint32_t             view_height;    // viewHeight (ditto)
@@ -268,6 +271,7 @@ typedef struct
 	bool is_nightmode;          // Request hardware inversion (if supported/safe).
 				    // This is *NOT* mutually exclusive with is_inverted!
 	bool no_refresh;            // Skip actually refreshing the eInk screen (useful when drawing in batch)
+	bool to_syslog;             // Send messages & errors to the syslog instead of stdout/stderr
 } FBInkConfig;
 
 // Same, but for OT/TTF specific stuff
@@ -355,7 +359,7 @@ FBINK_API int fbink_close(int fbfd);
 // fbink_cfg:		Pointer to an FBInkConfig struct.
 //				If you wish to customize them, the fields:
 //				is_centered, fontmult, fontname, fg_color, bg_color,
-//				no_viewport, is_verbose & is_quiet
+//				no_viewport, is_verbose, is_quiet & to_syslog
 //				MUST be set beforehand.
 //				This means you MUST call fbink_init() again when you update them, too!
 //				(This also means the effects from those fields "stick" across the lifetime of your application,
@@ -447,11 +451,11 @@ FBINK_API int fbink_free_ot_fonts(void);
 //				Pass a NULL pointer if unneeded.
 // NOTE: Alignment is relative to the printable area, as defined by the margins.
 //       As such, it only makes sense in the context of a single, specific print call.
-FBINK_API int fbink_print_ot(int         fbfd,
-			     const char* restrict string,
+FBINK_API int fbink_print_ot(int                           fbfd,
+			     const char* restrict          string,
 			     const FBInkOTConfig* restrict cfg,
-			     const FBInkConfig* restrict fbink_cfg,
-			     FBInkOTFit* restrict fit);
+			     const FBInkConfig* restrict   fbink_cfg,
+			     FBInkOTFit* restrict          fit);
 
 //
 // Brings printf formatting to fbink_print and fbink_print_ot ;).
@@ -463,15 +467,16 @@ FBINK_API int fbink_print_ot(int         fbfd,
 //       If cfg is valid, fbink_cfg MAY be NULL (same behavior as fbink_print_ot).
 //       If cfg is NULL, fbink_cfg MUST be valid.
 // NOTE: Meaning at least one of those two pointers MUST be valid!
-FBINK_API int fbink_printf(int                  fbfd,
+FBINK_API int fbink_printf(int                           fbfd,
 			   const FBInkOTConfig* restrict cfg,
-			   const FBInkConfig* restrict fbink_cfg,
-			   const char*                 fmt,
+			   const FBInkConfig* restrict   fbink_cfg,
+			   const char*                   fmt,
 			   ...) __attribute__((format(printf, 4, 5)));
 
 //
 // A simple wrapper around the internal screen refresh handling, without requiring you to include einkfb/mxcfb headers.
 // NOTE: Unlike FBInkRect, we *do* honor the original mxcfb rect order here (top before left).
+// Returns -(ENOSYS) on non-eInk devices (i.e., pure Linux builds)
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened for the duration of this call.
 // region_top:		top (y) field of an mxcfb rectangle.
@@ -488,13 +493,70 @@ FBINK_API int fbink_printf(int                  fbfd,
 // NOTE: This *ignores* is_dithered & no_refresh ;).
 // NOTE: If you do NOT want to request hardware dithering, set dithering_mode to HWD_PASSTHROUGH (i.e., 0).
 //       This is also the fallback value.
-FBINK_API int fbink_refresh(int                fbfd,
-			    uint32_t           region_top,
-			    uint32_t           region_left,
-			    uint32_t           region_width,
-			    uint32_t           region_height,
-			    uint8_t            dithering_mode,
+FBINK_API int fbink_refresh(int                         fbfd,
+			    uint32_t                    region_top,
+			    uint32_t                    region_left,
+			    uint32_t                    region_width,
+			    uint32_t                    region_height,
+			    uint8_t                     dithering_mode,
 			    const FBInkConfig* restrict fbink_cfg);
+
+// A simple wrapper around the MXCFB_WAIT_FOR_UPDATE_SUBMISSION ioctl, without requiring you to include mxcfb headers.
+// Returns -(EINVAL) when the update marker is invalid.
+// Returns -(ENOSYS) on devices where this ioctl is unsupported.
+// NOTE: It is only implemented by Kindle kernels (K5+)!
+// fbfd:		Open file descriptor to the framebuffer character device,
+//				if set to FBFD_AUTO, the fb is opened for the duration of this call.
+// marker:		The update marker you want to wait for.
+// NOTE: If marker is set to LAST_MARKER (0U), the one from the last update sent by this FBInk session will be used instead.
+//       If there aren't any, the call will fail and return -(EINVAL)!
+// NOTE: Waiting for a random marker *should* simply return early.
+FBINK_API int fbink_wait_for_submission(int fbfd, uint32_t marker);
+
+// A simple wrapper around the MXCFB_WAIT_FOR_UPDATE_COMPLETE ioctl, without requiring you to include mxcfb headers.
+// Returns -(EINVAL) when the update marker is invalid.
+// Returns -(ENOSYS) on non-eInk devices (i.e., pure Linux builds).
+// fbfd:		Open file descriptor to the framebuffer character device,
+//				if set to FBFD_AUTO, the fb is opened for the duration of this call.
+// marker:		The update marker you want to wait for.
+// NOTE: If marker is set to LAST_MARKER (0U), the one from the last update sent by this FBInk session will be used instead.
+//       If there aren't any, the call will fail and return -(EINVAL)!
+// NOTE: Waiting for a random marker *should* simply return early.
+FBINK_API int fbink_wait_for_complete(int fbfd, uint32_t marker);
+// NOTE: For most single-threaded use-cases, you *probably* don't need to bother with this,
+//       as all your writes to the framebuffer should obviously be serialized.
+// NOTE: All our target devices should default to the QUEUE_AND_MERGE update scheme,
+//       which means the EPDC itself will attempt to bundle updates together in order to do the least amount of work possible.
+//       (By work, I mean moving the eInk capsules around, i.e., limiting to amount of effective refreshes).
+//       A fun example of this can be seen with the dump/restore tests in utils/dump.c:
+//       By default, it will call fbink_wait_for_complete at sensible times, but if you pass a random argument to it,
+//       it won't: the difference that makes in practcie should be extremely obvious, especially for the first set of tests!
+// NOTE: I encourage you to strace your stock reader to see how it makes use of those ioctls:
+//       they're mostly used before and/or after FULL (i.e., flashing) updates,
+//       to make sure they don't get affected by surrounding updates.
+//       They can also be used to more predictably fence A2 updates.
+//       In fact, for the most part, you can think of them as a kind of vsync fence.
+//       Be aware that the ioctl will block for (relatively) longer than it takes for the refresh to visually end,
+//       and that the delay depends for the most part on the waveform mode (flashing & region size have a much smaller impact).
+//       With some waveform modes (mainly A2/DU), it'll return significantly earlier if the region's fb content hasn't changed.
+// NOTE: See KOReader's mxc_update @ https://github.com/koreader/koreader-base/blob/master/ffi/framebuffer_mxcfb.lua
+//       for some fancier examples in a complex application, where one might want to wait for completion of previous updates
+//       right before sending a flashing one, for example.
+// NOTE: Prior to FBInk 1.20.0, we used to *enforce* a wait_for_complete *after* *every* flashing (FULL) update.
+//       This was originally done to mimic eips's behavior when displaying an image.
+//       While blocking right after a refresh made sense for a one-off CLI tool, it's different for API users:
+//       in most cases, it probably makes more sense to only block *before* the *following* flashing refresh,
+//       thus ensuring that the wait will be shorter (or near zero), since time has probably passed between those two refreshes.
+//       But, if you know that you won't be busy for a while after a flashing update, it might make sense to wait right after it,
+//       in order to avoid an ioctl on the next refresh that might end up hurting reactivity...
+//       Incidentally, as all of this depends on specific use-cases, this is why it is entirely left to the user,
+//       and why there's no compatibility flag in FBInkConfig to restore the FBInk < 1.20 behavior ;).
+
+// Return the update marker from the last *refresh* (explicit or implicit) done in this FBInk session.
+// NOTE: Returns LAST_MARKER (0U) if there wasn't any, or on non-eInk devices (i.e., pure Linux builds).
+// NOTE: Mainly useful if you want to do fairly fancy stuff with wait_for_complete/wait_for_submission,
+//       otherwise, simply passing LAST_MARKER to 'em should do the trick.
+FBINK_API uint32_t fbink_get_last_marker(void);
 
 //
 // Returns true if the device appears to be in a quirky framebuffer state that *may* require a reinit to produce sane results.
@@ -540,7 +602,7 @@ FBINK_API int fbink_print_progress_bar(int fbfd, uint8_t percentage, const FBInk
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call.
 // progress:		0-16 value to set the progress thumb's position in the bar.
-// fbink_cfg:		Pointer to an FBInkConfig struct (ignores is_overlay, is_bgless, is_fgless, col & hoffset;
+// fbink_cfg:		Pointer to an FBInkConfig struct (ignores is_overlay, is_fgless, col & hoffset;
 //				as well as is_centered & is_padded).
 FBINK_API int fbink_print_activity_bar(int fbfd, uint8_t progress, const FBInkConfig* restrict fbink_cfg);
 
@@ -572,10 +634,10 @@ FBINK_API int fbink_print_activity_bar(int fbfd, uint8_t progress, const FBInkCo
 // NOTE: There's a direct copy fast path in the very specific case of printing a Grayscale image *without* alpha,
 //       inversion or dithering on an 8bpp fb.
 // NOTE: No such luck on 32bpp, because of a mandatory RGB <-> BGR conversion ;).
-FBINK_API int fbink_print_image(int                fbfd,
-				const char*        filename,
-				short int          x_off,
-				short int          y_off,
+FBINK_API int fbink_print_image(int                         fbfd,
+				const char*                 filename,
+				short int                   x_off,
+				short int                   y_off,
 				const FBInkConfig* restrict fbink_cfg);
 
 // Print raw scanlines on screen (packed pixels).
@@ -601,13 +663,13 @@ FBINK_API int fbink_print_image(int                fbfd,
 //       If this is a concern to you, make sure your input buffer is formatted in a manner adapted to your output device:
 //       Generally, that'd be RGBA (32bpp) on Kobo (or RGB (24bpp) with ignore_alpha),
 //       and YA (grayscale + alpha) on Kindle (or Y (8bpp) with ignore_alpha).
-FBINK_API int fbink_print_raw_data(int                fbfd,
-				   unsigned char*     data,
-				   const int          w,
-				   const int          h,
-				   const size_t       len,
-				   short int          x_off,
-				   short int          y_off,
+FBINK_API int fbink_print_raw_data(int                         fbfd,
+				   unsigned char*              data,
+				   const int                   w,
+				   const int                   h,
+				   const size_t                len,
+				   short int                   x_off,
+				   short int                   y_off,
 				   const FBInkConfig* restrict fbink_cfg);
 
 //
@@ -649,13 +711,13 @@ FBINK_API int fbink_dump(int fbfd, FBInkDump* restrict dump);
 // fbink_cfg:		Pointer to an FBInkConfig struct (honors any combination of halign/valign, row/col & x_off/y_off).
 // dump:		Pointer to an FBInkDump struct (will be recycled if already used).
 // NOTE: The same considerations as in fbink_dump should be taken regarding the handling of FBInkDump structs.
-FBINK_API int fbink_region_dump(int                fbfd,
-				short int          x_off,
-				short int          y_off,
-				unsigned short int w,
-				unsigned short int h,
+FBINK_API int fbink_region_dump(int                         fbfd,
+				short int                   x_off,
+				short int                   y_off,
+				unsigned short int          w,
+				unsigned short int          h,
 				const FBInkConfig* restrict fbink_cfg,
-				FBInkDump* restrict dump);
+				FBInkDump* restrict         dump);
 
 // Restore a framebuffer dump made by fbink_dump/fbink_region_dump.
 // Returns -(ENOSYS) when image support is disabled (MINIMAL build).
