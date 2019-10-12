@@ -46,6 +46,8 @@ func main() {
 
 	// NOTE: we create ONE instance of this ONLY.
 	fb := gofbink.New(&fbinkOpts, &rOpts)
+	// Say hello
+	fmt.Println("Using FBInk", fb.Version())
 	// Optionlly open a file descriptor. If Open() is not called, FBInk
 	// will manage this upon every call to FBInk functions
 	fb.Open()
