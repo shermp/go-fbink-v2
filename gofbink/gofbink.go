@@ -766,12 +766,9 @@ func (f *FBInk) PrintRBGA(xOff, yOff int16, im *image.RGBA, cfg *FBInkConfig) er
 
 // GetLastRect returns the last painted to area
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) GetLastRect(rect *FBInkRect) {
+func (f *FBInk) GetLastRect() FBInkRect {
 	rectC := C.fbink_get_last_rect()
-	rect.Left = uint16(rectC.left)
-	rect.Top = uint16(rectC.top)
-	rect.Width = uint16(rectC.width)
-	rect.Height = uint16(rectC.height)
+	return FBInkRect{uint16(rectC.left), uint16(rectC.top), uint16(rectC.width), uint16(rectC.height)}
 }
 
 // ClearScreen simply clears the screen to white
