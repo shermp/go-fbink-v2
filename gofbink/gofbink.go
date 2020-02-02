@@ -768,7 +768,12 @@ func (f *FBInk) PrintRBGA(xOff, yOff int16, im *image.RGBA, cfg *FBInkConfig) er
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) GetLastRect() FBInkRect {
 	rectC := C.fbink_get_last_rect()
-	return FBInkRect{uint16(rectC.left), uint16(rectC.top), uint16(rectC.width), uint16(rectC.height)}
+	return FBInkRect{
+	    Left: uint16(rectC.left), 
+	    Top: uint16(rectC.top), 
+	    Width: uint16(rectC.width), 
+	    Height: uint16(rectC.height),
+	}
 }
 
 // ClearScreen simply clears the screen to white
