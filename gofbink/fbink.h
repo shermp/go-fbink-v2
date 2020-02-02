@@ -1,6 +1,6 @@
 /*
 	FBInk: FrameBuffer eInker, a tool to print text & images on eInk devices (Kobo/Kindle)
-	Copyright (C) 2018-2019 NiLuJe <ninuje@gmail.com>
+	Copyright (C) 2018-2020 NiLuJe <ninuje@gmail.com>
 	SPDX-License-Identifier: GPL-3.0-or-later
 
 	----
@@ -110,6 +110,15 @@ typedef enum
 	EDGE          // i.e., RIGHT for halign, BOTTOM for valign
 } ALIGN_INDEX_T;
 
+// List of available padding values
+typedef enum
+{
+	NO_PADDING = 0U,
+	HORI_PADDING,
+	VERT_PADDING,
+	FULL_PADDING
+} PADDING_INDEX_T;
+
 // List of available colors in the eInk color map
 // NOTE: This is split in FG & BG to ensure that the default values lead to a sane result (i.e., black on white)
 typedef enum
@@ -152,7 +161,11 @@ typedef enum
 	BG_BLACK
 } BG_COLOR_INDEX_T;
 
-// List of *potentially* available waveform modes
+// List of *potentially* available waveform modes.
+// NOTE: On EPDC v1 (as well as all Kindle) devices, REAGL & REAGLD generally expect to *always* be flashing.
+//       This is currently left at your own discretion, though.
+//       c.f., https://github.com/NiLuJe/FBInk/commit/32acece78f7cc92b06faa4a668feead260b8ce24
+// NOTE: See the various mxcfb headers in the eink folder for more details about what's available on your platform.
 typedef enum
 {
 	WFM_AUTO = 0U,
@@ -171,6 +184,8 @@ typedef enum
 	WFM_GCK16,
 	WFM_GLKW16,
 	WFM_INIT,
+	WFM_UNKNOWN,
+	WFM_INIT2,
 } WFM_MODE_INDEX_T;
 
 // List of *potentially* available HW dithering modes
@@ -180,7 +195,11 @@ typedef enum
 	HWD_FLOYD_STEINBERG,
 	HWD_ATKINSON,
 	HWD_ORDERED,
-	HWD_QUANT_ONLY
+	HWD_QUANT_ONLY,
+	HWD_LEGACY = 0xFFu,    // Use legacy EPDC v1 dithering instead (if available).
+	//                        Note that it is *not* offloaded to the PxP, it's purely software, in-kernel.
+	//                        Usually based on Atkinson's algo. The most useful one being the Y8->Y1 one,
+	//                        which we request with A2/DU refreshes.
 } HW_DITHER_INDEX_T;
 
 // List of NTX rotation quirk types (c.f., mxc_epdc_fb_check_var @ drivers/video/fbdev/mxc/mxc_epdc_v2_fb.c)...
@@ -189,7 +208,10 @@ typedef enum
 	NTX_ROTA_STRAIGHT = 0U,    // No shenanigans (at least as far as ioctls are concerned)
 	NTX_ROTA_ALL_INVERTED,     // Every rotation is inverted by the kernel
 	NTX_ROTA_ODD_INVERTED,     // Only Landscape (odd) rotations are inverted by the kernel
-	NTX_ROTA_SANE              // NTX_ROTA_STRAIGHT + boot rota is UR + Panel is natively UR
+	NTX_ROTA_SANE              // NTX_ROTA_STRAIGHT, and ntxBootRota is the native Portrait orientation.
+	//                            Optionally, bonus points if that's actually UR, and the panel is natively mounted UR,
+	//                            like on the Kobo Libra.
+	//                            Triple whammy if the touch layer rotation matches!
 } NTX_ROTA_INDEX_T;
 
 //
@@ -239,7 +261,7 @@ typedef struct
 	bool      is_inverted;      // Invert colors.
 				    // This is *NOT* mutually exclusive with is_nightmode, and is *always* supported.
 	bool      is_flashing;      // Request a black flash on refresh
-	bool      is_cleared;       // Clear the screen beforehand (honors is_inverted)
+	bool      is_cleared;       // Clear the full screen beforehand (honors bg_color & is_inverted)
 	bool      is_centered;      // Center the text (horizontally)
 	short int hoffset;          // Horizontal offset (in pixels) for text position
 	short int voffset;          // Vertical offset (in pixels) for text position
@@ -249,7 +271,7 @@ typedef struct
 	uint8_t   fg_color;         // Requested foreground color for text (c.f., FG_COLOR_INDEX_T enum)
 	uint8_t   bg_color;         // Requested background color for text (c.f., BG_COLOR_INDEX_T enum)
 	bool      is_overlay;       // Don't draw bg and use inverse of fb's underlying pixel as pen fg color
-	bool      is_bgless;        // Don't draw bg (mutually exclusive with is_overlay)
+	bool      is_bgless;        // Don't draw bg (mutually exclusive with is_overlay, which will take precedence)
 	bool      is_fgless;        // Don't draw fg (takes precendence over is_overlay/is_bgless)
 	bool      no_viewport;      // Ignore viewport corrections, whether hardware-related on Kobo, or to center rows
 	bool      is_verbose;       // Print verbose diagnostic informations on stdout
@@ -265,13 +287,13 @@ typedef struct
 				    //       preferring instead proper preprocessing of your input images,
 				    //       c.f., https://www.mobileread.com/forums/showpost.php?p=3728291&postcount=17
 	uint8_t wfm_mode;           // Request a specific waveform mode (c.f., WFM_MODE_INDEX_T enum; defaults to AUTO)
-	bool    is_dithered;        // Request (ordered) hardware dithering (if supported).
-	bool    sw_dithering;       // Request (ordered) *software* dithering when printing an image.
-				    // This is *NOT* mutually exclusive with is_dithered!
-	bool is_nightmode;          // Request hardware inversion (if supported/safe).
-				    // This is *NOT* mutually exclusive with is_inverted!
-	bool no_refresh;            // Skip actually refreshing the eInk screen (useful when drawing in batch)
-	bool to_syslog;             // Send messages & errors to the syslog instead of stdout/stderr
+	uint8_t dithering_mode;    // Request a specific dithering mode (c.f., HW_DITHER_INDEX_T; defaults to PASSTHROUGH)
+	bool    sw_dithering;      // Request (ordered) *software* dithering when printing an image.
+				   // This is *NOT* mutually exclusive with dithering_mode!
+	bool is_nightmode;         // Request hardware inversion (if supported/safe).
+				   // This is *NOT* mutually exclusive with is_inverted!
+	bool no_refresh;           // Skip actually refreshing the eInk screen (useful when drawing in batch)
+	bool to_syslog;            // Send messages & errors to the syslog instead of stdout/stderr
 } FBInkConfig;
 
 // Same, but for OT/TTF specific stuff
@@ -284,11 +306,16 @@ typedef struct
 		short int left;      // Left margin in pixels (if negative, counts backwards from the right edge)
 		short int right;     // Right margin in pixels (supports negative values, too)
 	} margins;
-	float              size_pt;         // Size of text in points. If not set (0.0f), defaults to 12pt
-	unsigned short int size_px;         // Size of text in pixels. Optional, but takes precedence over size_pt.
-	bool               is_centered;     // Horizontal centering
-	bool               is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
-	bool               compute_only;    // Abort early after the line-break computation pass (no actual rendering).
+	float              size_pt;        // Size of text in points. If not set (0.0f), defaults to 12pt
+	unsigned short int size_px;        // Size of text in pixels. Optional, but takes precedence over size_pt.
+	bool               is_centered;    // Horizontal centering
+	uint8_t            padding;        // Pad the drawing area (i.e., paint it in the background color).
+	//                                    Unlike in the fixed-cell codepath, this always applies to both sides (L&R/T&B),
+	//                                    no matter the chosen axis. (c.f., PADDING_INDEX_T enum.)
+	//                                    f.g., HORI_PADDING is useful to prevent overlaps when drawing
+	//                                    consecutive strings on the same line(s).
+	bool is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
+	bool compute_only;    // Abort early after the line-break computation pass (no actual rendering).
 	//                                     NOTE: This is early enough that it will *NOT* be able to predict *every*
 	//                                           potential case of truncation.
 	//                                           In particular, broken metrics may yield a late truncation at rendering time.
@@ -443,7 +470,7 @@ FBINK_API int fbink_free_ot_fonts(void);
 // fbink_cfg:		Optional pointer to an FBInkConfig struct. If set, the fields
 //				is_inverted, is_flashing, is_cleared, is_centered, is_halfway,
 //				is_overlay, is_fgless, is_bgless, fg_color, bg_color, valign, halign,
-//				wfm_mode, is_dithered, is_nightmode, no_refresh will be honored.
+//				wfm_mode, dithering_mode, is_nightmode, no_refresh will be honored.
 //				Pass a NULL pointer if unneeded.
 // fit:			Optional pointer to an FBInkOTFit struct.
 //				If set, it will be used to return information about the amount of lines needed to render
@@ -483,22 +510,22 @@ FBINK_API int fbink_printf(int                           fbfd,
 // region_left:		left (x) field of an mxcfb rectangle.
 // region_width:	width field of an mxcfb rectangle.
 // region_height:	height field of an mxcfb rectangle.
-// dithering_mode:	dithering mode (f.g., HWD_ORDERED, c.f., HW_DITHER_INDEX_T enum).
-//			NOTE: Only supported on devices with a recent EPDC (>= v2)!
-//			      On Kindle, that's everything since the KOA2 (KOA2, PW4, KT4, KOA3),
-//			      On Kobo, that's everything since Mk.7.
-//			NOTE: Even then, your device may not actually support anything other than PASSTHROUGH & ORDERED!
-// fbink_cfg:		Pointer to an FBInkConfig struct. Honors wfm_mode, is_nightmode, is_flashing.
+// fbink_cfg:		Pointer to an FBInkConfig struct. Honors wfm_mode, dithering_mode, is_nightmode, is_flashing.
 // NOTE: If you request an empty region (0x0 @ (0, 0), a full-screen refresh will be performed!
-// NOTE: This *ignores* is_dithered & no_refresh ;).
-// NOTE: If you do NOT want to request hardware dithering, set dithering_mode to HWD_PASSTHROUGH (i.e., 0).
+// NOTE: This *ignores* no_refresh ;).
+// NOTE: As far as dithering is concerned, c.f., HW_DITHER_INDEX_T enum.
+//	 True HW dithering is only supported on devices with a recent EPDC (>= v2)!
+//	 On Kindle, that's everything since the KOA2 (KOA2, PW4, KT4, KOA3),
+//	 On Kobo, that's everything since Mk.7.
+// NOTE: Even then, your device may not actually support anything other than PASSTHROUGH & ORDERED!
+//	 On slightly older devices, the EPDC may support some sort of in-kernel software dithering, hence HWD_LEGACY.
+// NOTE: If you do NOT want to request any dithering, set FBInkConfig's dithering_mode field to HWD_PASSTHROUGH (i.e., 0).
 //       This is also the fallback value.
 FBINK_API int fbink_refresh(int                         fbfd,
 			    uint32_t                    region_top,
 			    uint32_t                    region_left,
 			    uint32_t                    region_width,
 			    uint32_t                    region_height,
-			    uint8_t                     dithering_mode,
 			    const FBInkConfig* restrict fbink_cfg);
 
 // A simple wrapper around the MXCFB_WAIT_FOR_UPDATE_SUBMISSION ioctl, without requiring you to include mxcfb headers.
@@ -623,7 +650,7 @@ FBINK_API int fbink_print_activity_bar(int fbfd, uint8_t progress, const FBInkCo
 //       an image that decodes in a pixel format close to the one used by the target device fb is best.
 //       Generally, that'd be a Grayscale (color-type 0) PNG, ideally dithered down to the eInk palette
 //       (c.f., https://www.mobileread.com/forums/showpost.php?p=3728291&postcount=17).
-//       If you can't pre-process your images, dithering can be handled by the hardware on recent devices (c.f. is_dithered),
+//       If you can't pre-process your images, dithering can be handled by the hardware on recent devices (c.f. dithering_mode),
 //       or by FBInk itself (c.f., sw_dithering), but the pixel format still matters:
 //       On a 32bpp fb, Gray will still be faster than RGB.
 //       On a 8bpp fb, try to only use Gray for the best performance possible,
@@ -673,12 +700,16 @@ FBINK_API int fbink_print_raw_data(int                         fbfd,
 				   const FBInkConfig* restrict fbink_cfg);
 
 //
-// Just clear the screen, eInk refresh included (or not ;)).
+// Just clear the screen (or a region of it), eInk refresh included (or not ;)).
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call.
-// fbink_cfg:		Pointer to an FBInkConfig struct (honors is_inverted, wfm_mode, is_dithered, is_nightmode, is_flashing,
-//				as well as no_refresh, pen_fg_color & pen_bg_color).
-FBINK_API int fbink_cls(int fbfd, const FBInkConfig* restrict fbink_cfg);
+// fbink_cfg:		Pointer to an FBInkConfig struct (honors is_inverted, wfm_mode, dithering_mode, is_nightmode, is_flashing,
+//				as well as no_refresh & bg_color).
+// rect:		Optional pointer to an FBInkRect rectangle (as, say, returned by fbink_get_last_rect),
+//				describing the specific region of screen to clear (in absolute coordinates).
+//				If the rectangle is empty (i.e., width or height is zero) or the pointer is NULL,
+//				the full screen will be cleared.
+FBINK_API int fbink_cls(int fbfd, const FBInkConfig* restrict fbink_cfg, const FBInkRect* restrict rect);
 
 //
 // Dump the full screen.
@@ -727,13 +758,14 @@ FBINK_API int fbink_region_dump(int                         fbfd,
 //	-(EINVAL)	when there's no data to restore.
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened & mmap'ed for the duration of this call.
-// fbink_cfg:		Pointer to an FBInkConfig struct (honors wfm_mode, is_dithered, is_nightmode, is_flashing & no_refresh).
+// fbink_cfg:		Pointer to an FBInkConfig struct (honors wfm_mode, dithering_mode, is_nightmode,
+//				is_flashing & no_refresh).
 // dump:		Pointer to an FBInkDump struct, as setup by fbink_dump or fbink_region_dump.
 // NOTE: In case the dump was regional, it will be restored in the exact same coordinates it was taken from,
 //       no actual positioning is needed/supported at restore time.
 // NOTE: This does not support any kind of software processing, at all!
 //       If you somehow need inversion or dithering, it has to be supported at the hardware level at refresh time by your device,
-//       (i.e., is_dithered vs. sw_dithering, and is_nightmode vs. is_inverted).
+//       (i.e., dithering_mode vs. sw_dithering, and is_nightmode vs. is_inverted).
 //       At most common bitdepths, you can somewhat work around these restrictions, obviously at a performance premium,
 //       by using fbink_print_raw_data instead (see the relevant notes for fbink_dump), with a few quirky caveats...
 //       c.f., the last few tests in utils/dump.c for highly convoluted examples that I don't recommend replicating in production.
