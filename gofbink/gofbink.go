@@ -89,9 +89,20 @@ type Align uint8
 
 // Align index constants
 const (
-	None Align = iota
+	AlignNone Align = iota
 	Center
 	Edge
+)
+
+// PaddingAxis type
+type PaddingAxis uint8
+
+// Padding index constants
+const (
+	PaddingNone PaddingAxis = iota
+	Horizontal
+	Vertical
+	Full
 )
 
 // FGcolor type
@@ -161,6 +172,8 @@ const (
 	WfmGCK16
 	WfmGLKW16
 	WfmINIT
+	WfmUNKNOWN
+	WfmINIT2
 )
 
 // HWDither type
@@ -173,6 +186,7 @@ const (
 	DitherAtkinson
 	DitherOrdered
 	DitherQuantOnly
+	DitherLegacy = 255
 )
 
 // NTXRota type
@@ -205,7 +219,7 @@ const (
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
 
-// Automatic previous marker retrieval for use with WaitFor*
+// LastMarker is an automatic previous marker retrieval for use with WaitFor*
 const LastMarker = uint32(C.LAST_MARKER)
 
 // const exitSuccess = int(C.EXIT_SUCCESS)
@@ -247,38 +261,38 @@ type FBInkState struct {
 
 // FBInkConfig is a struct which configures the behavior of fbink
 type FBInkConfig struct {
-	Row          int16
-	Col          int16
-	fontmult     uint8
-	fontname     Font
-	IsInverted   bool
-	IsFlashing   bool
-	IsCleared    bool
-	isCentered   bool
-	Hoffset      int16
-	Voffset      int16
-	IsHalfway    bool
-	IsPadded     bool
-	IsRpadded    bool
-	fgColor      FGcolor
-	bgColor      BGcolor
-	IsOverlay    bool
-	IsBGless     bool
-	isFGless     bool
-	noViewport   bool
-	isVerbose    bool
-	isQuiet      bool
-	IgnoreAlpha  bool
-	Halign       Align
-	Valign       Align
-	ScaledWidth  int16
-	ScaledHeight int16
-	WfmMode      WaveFormMode
-	IsDithered   bool
-	SWDithering  bool
-	IsNightmode  bool
-	NoRefresh    bool
-	toSyslog     bool
+	Row           int16
+	Col           int16
+	fontmult      uint8
+	fontname      Font
+	IsInverted    bool
+	IsFlashing    bool
+	IsCleared     bool
+	isCentered    bool
+	Hoffset       int16
+	Voffset       int16
+	IsHalfway     bool
+	IsPadded      bool
+	IsRpadded     bool
+	fgColor       FGcolor
+	bgColor       BGcolor
+	IsOverlay     bool
+	IsBGless      bool
+	isFGless      bool
+	noViewport    bool
+	isVerbose     bool
+	isQuiet       bool
+	IgnoreAlpha   bool
+	Halign        Align
+	Valign        Align
+	ScaledWidth   int16
+	ScaledHeight  int16
+	WfmMode       WaveFormMode
+	DitheringMode HWDither
+	SWDithering   bool
+	IsNightmode   bool
+	NoRefresh     bool
+	toSyslog      bool
 }
 
 // FBInkOTConfig is a struct which configures OpenType specific options
@@ -292,17 +306,20 @@ type FBInkOTConfig struct {
 	SizePt       float32
 	SizePx       uint16
 	IsCentred    bool
+	Padding      PaddingAxis
 	IsFormatted  bool
 	ComputeOnly  bool
 	NoTruncation bool
 }
 
+// FBInkOTFit for if you need more details about the line-breaking computations
 type FBInkOTFit struct {
-	ComputedLines  uint16
-	RenderedLines  uint16
-	Truncated      bool
+	ComputedLines uint16
+	RenderedLines uint16
+	Truncated     bool
 }
 
+// FBInkRect maps to an mxcfb rectangle
 type FBInkRect struct {
 	Left   uint16
 	Top    uint16
@@ -310,6 +327,7 @@ type FBInkRect struct {
 	Height uint16
 }
 
+// FBInkDump for use with fump & restore
 type FBInkDump struct {
 	data   *uint8
 	Size   uint
@@ -407,7 +425,7 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 	cfgC.scaled_width = C.short(cfg.ScaledWidth)
 	cfgC.scaled_height = C.short(cfg.ScaledHeight)
 	cfgC.wfm_mode = C.uint8_t(cfg.WfmMode)
-	cfgC.is_dithered = C.bool(cfg.IsDithered)
+	cfgC.dithering_mode = C.uint8_t(cfg.DitheringMode)
 	cfgC.sw_dithering = C.bool(cfg.SWDithering)
 	cfgC.is_nightmode = C.bool(cfg.IsNightmode)
 	cfgC.no_refresh = C.bool(cfg.NoRefresh)
@@ -424,10 +442,20 @@ func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	otCfgC.size_pt = C.float(otCfg.SizePt)
 	otCfgC.size_px = C.uint16_t(otCfg.SizePx)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
+	otCfgC.padding = C.uint8_t(otCfg.Padding)
 	otCfgC.is_formatted = C.bool(otCfg.IsFormatted)
 	otCfgC.compute_only = C.bool(otCfg.ComputeOnly)
 	otCfgC.no_truncation = C.bool(otCfg.NoTruncation)
 	return otCfgC
+}
+
+func (f *FBInk) newRect(Rect *FBInkRect) C.FBInkRect {
+	var rectC C.FBInkRect
+	rectC.left = C.uint16_t(Rect.Left)
+	rectC.top = C.uint16_t(Rect.Top)
+	rectC.width = C.uint16_t(Rect.Width)
+	rectC.height = C.uint16_t(Rect.Height)
+	return rectC
 }
 
 // UpdateRestricted updates cfg with the values in rCfg, which is
@@ -621,18 +649,17 @@ func (f *FBInk) PrintLastLn(a ...interface{}) (n int, err error) {
 
 // Refresh provides a way of refreshing the eink screen
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) Refresh(top, left, width, height uint32, ditherMode HWDither, cfg *FBInkConfig) error {
+func (f *FBInk) Refresh(top, left, width, height uint32, cfg *FBInkConfig) error {
 	cfgC := f.newConfigC(cfg)
 	topC := C.uint32_t(top)
 	leftC := C.uint32_t(left)
 	widthC := C.uint32_t(width)
 	heightC := C.uint32_t(height)
-	ditherModeC := C.uint8_t(ditherMode)
-	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, ditherModeC, &cfgC))
+	res := CexitCode(C.fbink_refresh(f.fbfd, topC, leftC, widthC, heightC, &cfgC))
 	return createError(res)
 }
 
-// Waits for the submission of a specific refresh (Kindle only)
+// WaitForSubmission waits for the submission of a specific refresh (Kindle only)
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) WaitForSubmission(marker uint32) error {
 	markerC := C.uint32_t(marker)
@@ -640,7 +667,7 @@ func (f *FBInk) WaitForSubmission(marker uint32) error {
 	return createError(res)
 }
 
-// Waits for the completion of a specific refresh
+// WaitForCompletion waits for the completion of a specific refresh
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) WaitForCompletion(marker uint32) error {
 	markerC := C.uint32_t(marker)
@@ -648,7 +675,7 @@ func (f *FBInk) WaitForCompletion(marker uint32) error {
 	return createError(res)
 }
 
-// Returns the marker from the last refresh sent
+// GetLastMarker returns the marker from the last refresh sent
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) GetLastMarker() (uint32, error) {
 	res := C.fbink_get_last_marker()
@@ -739,16 +766,28 @@ func (f *FBInk) PrintRBGA(xOff, yOff int16, im *image.RGBA, cfg *FBInkConfig) er
 	return createError(res)
 }
 
+// GetLastRect returns the last painted to area
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) GetLastRect() FBInkRect {
+	rectC := C.fbink_get_last_rect()
+	return FBInkRect{
+		Left:   uint16(rectC.left),
+		Top:    uint16(rectC.top),
+		Width:  uint16(rectC.width),
+		Height: uint16(rectC.height),
+	}
+}
+
 // ClearScreen simply clears the screen to white
 // See "fbink.h" for detailed usage and explanation
-func (f *FBInk) ClearScreen(cfg *FBInkConfig) error {
+func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 	cfgC := f.newConfigC(cfg)
-	res := CexitCode(C.fbink_cls(f.fbfd, &cfgC))
+	rectC := f.newRect(rect)
+	res := CexitCode(C.fbink_cls(f.fbfd, &cfgC, &rectC))
 	return createError(res)
 }
 
 // TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
-// TODO: fbink_get_last_rect
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
