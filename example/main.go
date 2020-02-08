@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/shermp/go-fbink-v2/gofbink/v2"
+	"github.com/shermp/go-fbink-v2/v2/gofbink"
 )
 
 func testPrints(fb *gofbink.FBInk, cfg *gofbink.FBInkConfig) {
