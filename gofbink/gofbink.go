@@ -164,11 +164,11 @@ const (
 	WfmGL16
 	WfmREAGL
 	WfmREAGLD
-	WfmGC16_FAST
-	WfmGL16_FAST
+	WfmGC16Fast
+	WfmGL16Fast
 	WfmDU4
 	WfmGL4
-	WfmGL16_INV
+	WfmGL16Inv
 	WfmGCK16
 	WfmGLKW16
 	WfmINIT
@@ -236,7 +236,7 @@ type FBInkState struct {
 	DeviceName           string
 	DeviceCodename       string
 	DevicePlatform       string
-	DeviceId             uint16
+	DeviceID             uint16
 	PenFGcolor           uint8
 	PenBGcolor           uint8
 	ScreenDPI            uint16
@@ -547,7 +547,7 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.DeviceName = C.GoString(&stateC.device_name[0])
 	state.DeviceCodename = C.GoString(&stateC.device_codename[0])
 	state.DevicePlatform = C.GoString(&stateC.device_platform[0])
-	state.DeviceId = uint16(stateC.device_id)
+	state.DeviceID = uint16(stateC.device_id)
 	state.PenFGcolor = uint8(stateC.pen_fg_color)
 	state.PenBGcolor = uint8(stateC.pen_bg_color)
 	state.ScreenDPI = uint16(stateC.screen_dpi)
