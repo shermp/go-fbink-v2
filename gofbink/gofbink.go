@@ -89,7 +89,7 @@ type Align uint8
 
 // Align index constants
 const (
-	None Align = iota
+	AlignNone Align = iota
 	Center
 	Edge
 )
@@ -99,7 +99,7 @@ type PaddingAxis uint8
 
 // Padding index constants
 const (
-	None PaddingAxis = iota
+	PaddingNone PaddingAxis = iota
 	Horizontal
 	Vertical
 	Full
@@ -313,9 +313,9 @@ type FBInkOTConfig struct {
 }
 
 type FBInkOTFit struct {
-	ComputedLines  uint16
-	RenderedLines  uint16
-	Truncated      bool
+	ComputedLines uint16
+	RenderedLines uint16
+	Truncated     bool
 }
 
 type FBInkRect struct {
@@ -763,16 +763,15 @@ func (f *FBInk) PrintRBGA(xOff, yOff int16, im *image.RGBA, cfg *FBInkConfig) er
 	return createError(res)
 }
 
-
 // GetLastRect returns the last painted to area
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) GetLastRect() FBInkRect {
 	rectC := C.fbink_get_last_rect()
 	return FBInkRect{
-	    Left: uint16(rectC.left), 
-	    Top: uint16(rectC.top), 
-	    Width: uint16(rectC.width), 
-	    Height: uint16(rectC.height),
+		Left:   uint16(rectC.left),
+		Top:    uint16(rectC.top),
+		Width:  uint16(rectC.width),
+		Height: uint16(rectC.height),
 	}
 }
 
@@ -780,7 +779,7 @@ func (f *FBInk) GetLastRect() FBInkRect {
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 	cfgC := f.newConfigC(cfg)
-	rectC := f.newRectC(rect)
+	rectC := f.newRect(rect)
 	res := CexitCode(C.fbink_cls(f.fbfd, &cfgC, &rectC))
 	return createError(res)
 }
