@@ -94,7 +94,7 @@ const (
 	Edge
 )
 
-// Padding type
+// PaddingAxis type
 type PaddingAxis uint8
 
 // Padding index constants
@@ -219,7 +219,7 @@ const (
 // FBFDauto is the automatic fbfd handler
 const FBFDauto = int(C.FBFD_AUTO)
 
-// Automatic previous marker retrieval for use with WaitFor*
+// LastMarker is an automatic previous marker retrieval for use with WaitFor*
 const LastMarker = uint32(C.LAST_MARKER)
 
 // const exitSuccess = int(C.EXIT_SUCCESS)
@@ -312,12 +312,14 @@ type FBInkOTConfig struct {
 	NoTruncation bool
 }
 
+// FBInkOTFit for if you need more details about the line-breaking computations
 type FBInkOTFit struct {
 	ComputedLines uint16
 	RenderedLines uint16
 	Truncated     bool
 }
 
+// FBInkRect maps to an mxcfb rectangle
 type FBInkRect struct {
 	Left   uint16
 	Top    uint16
@@ -325,6 +327,7 @@ type FBInkRect struct {
 	Height uint16
 }
 
+// FBInkDump for use with fump & restore
 type FBInkDump struct {
 	data   *uint8
 	Size   uint
@@ -656,7 +659,7 @@ func (f *FBInk) Refresh(top, left, width, height uint32, cfg *FBInkConfig) error
 	return createError(res)
 }
 
-// Waits for the submission of a specific refresh (Kindle only)
+// WaitForSubmission waits for the submission of a specific refresh (Kindle only)
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) WaitForSubmission(marker uint32) error {
 	markerC := C.uint32_t(marker)
@@ -664,7 +667,7 @@ func (f *FBInk) WaitForSubmission(marker uint32) error {
 	return createError(res)
 }
 
-// Waits for the completion of a specific refresh
+// WaitForCompletion waits for the completion of a specific refresh
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) WaitForCompletion(marker uint32) error {
 	markerC := C.uint32_t(marker)
@@ -672,7 +675,7 @@ func (f *FBInk) WaitForCompletion(marker uint32) error {
 	return createError(res)
 }
 
-// Returns the marker from the last refresh sent
+// GetLastMarker returns the marker from the last refresh sent
 // See "fbink.h" for detailed usage and explanation
 func (f *FBInk) GetLastMarker() (uint32, error) {
 	res := C.fbink_get_last_marker()
