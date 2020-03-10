@@ -205,15 +205,18 @@ type CexitCode int
 
 // Go translation of FBInk's exit codes
 const (
-	exitSuccess = CexitCode(C.EXIT_SUCCESS)
-	exitFailure = CexitCode(C.EXIT_FAILURE) * -1
-	eNoDev      = CexitCode(C.ENODEV) * -1
-	eNotSup     = CexitCode(C.ENOTSUP) * -1
-	eNoData     = CexitCode(C.ENODATA) * -1
-	eTime       = CexitCode(C.ETIME) * -1
-	eInval      = CexitCode(C.EINVAL) * -1
-	eIlSeq      = CexitCode(C.EILSEQ) * -1
-	eNoSpc      = CexitCode(C.ENOSPC) * -1
+	exitSuccess            = CexitCode(C.EXIT_SUCCESS)
+	exitOkBitdepthChange   = CexitCode(C.OK_BPP_CHANGE)
+	exitOkRotaChange       = CexitCode(C.OK_ROTA_CHANGE)
+	exitOkSameColorAlready = CexitCode(C.OK_ALREADY_SAME)
+	exitFailure            = CexitCode(C.EXIT_FAILURE) * -1
+	eNoDev                 = CexitCode(C.ENODEV) * -1
+	eNotSup                = CexitCode(C.ENOTSUP) * -1
+	eNoData                = CexitCode(C.ENODATA) * -1
+	eTime                  = CexitCode(C.ETIME) * -1
+	eInval                 = CexitCode(C.EINVAL) * -1
+	eIlSeq                 = CexitCode(C.EILSEQ) * -1
+	eNoSpc                 = CexitCode(C.ENOSPC) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -330,6 +333,7 @@ type FBInkRect struct {
 // FBInkDump for use with fump & restore
 type FBInkDump struct {
 	data   *uint8
+	Stride uint
 	Size   uint
 	Area   FBInkRect
 	Clip   FBInkRect
@@ -788,6 +792,10 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 }
 
 // TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
+// TODO: fbink_update_verbosity, fbink_update_pen_colors
+//       (which don't make much sense given the RestrictedConfig concept here ;)).
+// TODO: fbink_set_fg_pen_gray, fbink_set_bg_pen_gray, fbink_set_fg_pen_rgba, fbink_set_bg_pen_rgba
+// TODO: fbink_grid_clear, fbink_grid_refresh
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
