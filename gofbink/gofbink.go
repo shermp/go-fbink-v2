@@ -71,6 +71,9 @@ const (
 	Topaz
 	MicroKnight
 	VGA
+	Unifont
+	UnifontDW
+	Cozette
 )
 
 // FontStyle type
@@ -208,6 +211,7 @@ const (
 	exitSuccess            = CexitCode(C.EXIT_SUCCESS)
 	exitOkBitdepthChange   = CexitCode(C.OK_BPP_CHANGE)
 	exitOkRotaChange       = CexitCode(C.OK_ROTA_CHANGE)
+	exitOkLayoutChange     = CexitCode(C.OK_LAYOUT_CHANGE)
 	exitOkSameColorAlready = CexitCode(C.OK_ALREADY_SAME)
 	exitFailure            = CexitCode(C.EXIT_FAILURE) * -1
 	eNoDev                 = CexitCode(C.ENODEV) * -1
