@@ -1,5 +1,5 @@
 /*
-	FBInk: FrameBuffer eInker, a tool to print text & images on eInk devices (Kobo/Kindle)
+	FBInk: FrameBuffer eInker, a library to print text & images to an eInk Linux framebuffer
 	Copyright (C) 2018-2020 NiLuJe <ninuje@gmail.com>
 	SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -108,6 +108,9 @@ typedef enum
 	TOPAZ,               // Topaz+ A1200
 	MICROKNIGHT,         // MicroKnight+
 	VGA,                 // IBM VGA 8x16
+	UNIFONT,             // Unifont (single-wide glyphs only)
+	UNIFONTDW,           // Unifont (double-wide glyphs only)
+	COZETTE,             // Cozette
 	FONT_MAX = 0xFFu,    // uint8_t
 } __attribute__((packed)) FONT_INDEX_E;
 typedef uint8_t FONT_INDEX_T;
@@ -636,8 +639,9 @@ FBINK_API uint32_t fbink_get_last_marker(void);
 FBINK_API bool fbink_is_fb_quirky(void) __attribute__((pure, deprecated));
 
 // We'll need those for fbink_reinit (start > 256 to stay clear of errno values)
-#define OK_BPP_CHANGE  (1 << 9)
-#define OK_ROTA_CHANGE (1 << 10)
+#define OK_BPP_CHANGE    (1 << 9)
+#define OK_ROTA_CHANGE   (1 << 10)
+#define OK_LAYOUT_CHANGE (1 << 11)
 // Attempt to detect changes in framebuffer states (between this call and the last time fbink_init/fbink_reinit was called),
 // doing a reinit (i.e., calling fbink_init again) if needed, while doing the least amount of work possible in the process.
 // NOTE: The intended use-case is for long running apps which may trigger prints across different framebuffer states,
@@ -651,9 +655,13 @@ FBINK_API bool fbink_is_fb_quirky(void) __attribute__((pure, deprecated));
 // NOTE: Using fbink_reinit does NOT lift the requirement of having to run fbink_init at least ONCE,
 //       i.e., you cannot replace the initial fbink_init call by fbink_reinit!
 // Returns -(ENOSYS) on Kindle, where this is not needed.
-// Returns OK_BPP_CHANGE if reinitialization was *successful* following a bitdepth change.
-// Returns OK_ROTA_CHANGE if reinitialization was *successful* following a rotation change.
-//       If *both* bitdepth & rotation changed, OK_BPP_CHANGE takes precedence.
+// If reinitialization was *successful*, returns a bitmask with one or more of these flags set:
+// bit OK_BPP_CHANGE is set if there was a bitdepth change.
+// bit OK_ROTA_CHANGE is set if there was a rotation change.
+// bit OK_LAYOUT_CHANGE is set if a rotation change caused a layout change (i.e., an orientation swap, Portrait <-> Landscape),
+//     this obviously implies OK_ROTA_CHANGE.
+//     If *only* OK_ROTA_CHANGE is set, it means the rotation change was a simple inversion of the current orientation,
+//     (i.e., Portrait <-> Inverted Portrait or Landscape <-> Inverted Landscape).
 // NOTE: This means that it may return a *positive* non-zero value on *success*.
 //       This is helpful for callers that need to track FBInk's internal state via fbink_get_state(),
 //       because a reinit *might* affect the screen layout, signaling that their current state copy *may* be stale.
