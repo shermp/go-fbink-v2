@@ -224,7 +224,9 @@ const (
 	eTime                  = CexitCode(C.ETIME) * -1
 	eInval                 = CexitCode(C.EINVAL) * -1
 	eIlSeq                 = CexitCode(C.EILSEQ) * -1
+	eRange                 = CexitCode(C.ERANGE) * -1
 	eNoSpc                 = CexitCode(C.ENOSPC) * -1
+	eNoSys                 = CexitCode(C.ENOSYS) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -382,8 +384,12 @@ func createError(retValue CexitCode) error {
 		return errors.New("EINVAL")
 	case eIlSeq:
 		return errors.New("EILSEQ")
+	case eRange:
+		return errors.New("ERANGE")
 	case eNoSpc:
 		return errors.New("ENOSPC")
+	case eNoSys:
+		return errors.New("ENOSYS")
 	default:
 		return nil
 	}
