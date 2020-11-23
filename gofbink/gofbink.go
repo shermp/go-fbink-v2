@@ -812,6 +812,20 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 	return createError(res)
 }
 
+// RotaNativeToCanonical attempts to convert a native vInfo rotate constant to a canonical representation
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) RotaNativeToCanonical(rotate uint32) (uint8) {
+	res := C.fbink_rota_native_to_canonical(C.uint32_t(rotate))
+	return uint8(res)
+}
+
+// RotaCanonicalToNative attempts to convert a canonical representation to a native vInfo rotate constant
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) RotaCanonicalToNative(rotate uint8) (uint32) {
+	res := C.fbink_rota_canonical_to_native(C.uint8_t(rotate))
+	return uint32(res)
+}
+
 // TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
 // TODO: fbink_update_verbosity, fbink_update_pen_colors
 //       (which don't make much sense given the RestrictedConfig concept here ;)).
@@ -819,7 +833,6 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 // TODO: fbink_grid_clear, fbink_grid_refresh
 // TODO: fbink_add_ot_font_v2, fbink_free_ot_fonts_v2
 //       (don't really fit with the current API ;))
-// TODO: fbink_rota_native_to_canonical, fbink_rota_canonical_to_native
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
