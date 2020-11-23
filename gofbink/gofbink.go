@@ -177,6 +177,10 @@ const (
 	WfmINIT
 	WfmUNKNOWN
 	WfmINIT2
+	WfmA2In
+	WfmA2Out
+	WfmGC16HQ
+	WfmGS16
 )
 
 // HWDither type
@@ -304,12 +308,14 @@ type FBInkConfig struct {
 
 // FBInkOTConfig is a struct which configures OpenType specific options
 type FBInkOTConfig struct {
+	Font         unsafe.Pointer
 	Margins struct {
 		Top    int16
 		Bottom int16
 		Left   int16
 		Right  int16
 	}
+	Style        FontStyle
 	SizePt       float32
 	SizePx       uint16
 	IsCentred    bool
@@ -443,10 +449,12 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 
 func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	var otCfgC C.FBInkOTConfig
+	otCfgC.font = unsafe.Pointer(otCfg.Font)
 	otCfgC.margins.top = C.short(otCfg.Margins.Top)
 	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
+	otCfgC.style = C.int(otCfg.Style)
 	otCfgC.size_pt = C.float(otCfg.SizePt)
 	otCfgC.size_px = C.uint16_t(otCfg.SizePx)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
@@ -800,6 +808,9 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 //       (which don't make much sense given the RestrictedConfig concept here ;)).
 // TODO: fbink_set_fg_pen_gray, fbink_set_bg_pen_gray, fbink_set_fg_pen_rgba, fbink_set_bg_pen_rgba
 // TODO: fbink_grid_clear, fbink_grid_refresh
+// TODO: fbink_add_ot_font_v2, fbink_free_ot_fonts_v2
+//       (don't really fit with the current API ;))
+// TODO: fbink_rota_native_to_canonical, fbink_rota_canonical_to_native
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
