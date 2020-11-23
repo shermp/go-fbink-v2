@@ -308,7 +308,7 @@ type FBInkConfig struct {
 
 // FBInkOTConfig is a struct which configures OpenType specific options
 type FBInkOTConfig struct {
-	Font         unsafe.Pointer
+	//Font         unsafe.Pointer
 	Margins struct {
 		Top    int16
 		Bottom int16
@@ -449,7 +449,10 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 
 func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	var otCfgC C.FBInkOTConfig
-	otCfgC.font = unsafe.Pointer(otCfg.Font)
+	// Opaque pointer, should be considered mostly private, unless attempting tricky stuff with the _v2 API calls
+	//otCfgC.font = unsafe.Pointer(otCfg.Font)
+	// We're not using the _v2 ot_font API, so, just nil it to keep using the global font pool
+	otCfgC.font = nil
 	otCfgC.margins.top = C.short(otCfg.Margins.Top)
 	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
