@@ -218,6 +218,10 @@ typedef enum
 	WFM_INIT,
 	WFM_UNKNOWN,
 	WFM_INIT2,
+	WFM_A2IN,
+	WFM_A2OUT,
+	WFM_GC16HQ,
+	WFM_GS16,
 	WFM_MAX = 0xFFu,    // uint8_t
 } __attribute__((packed)) WFM_MODE_INDEX_E;
 typedef uint8_t WFM_MODE_INDEX_T;
@@ -336,9 +340,14 @@ typedef struct
 	bool to_syslog;     // Send messages & errors to the syslog instead of stdout/stderr
 } FBInkConfig;
 
-// Same, but for OT/TTF specific stuff
+// Same, but for OT/TTF specific stuff. MUST be zero-initialized.
 typedef struct
 {
+	void* font;    // NOTE: This is essentially a pointer to a local FBInkOTFonts instance,
+	//                      in order to use a set of fonts specific to an FBInkOTConfig,
+	//                      via fbink_add_ot_font_v2() & fbink_free_ot_fonts_v2().
+	//                      Consider it *private*: it needs to be NULL on init to be sane, but after that,
+	//                      it's only used & memory managed by FBInk itself (via the aforemented _v2 API), not the user.
 	struct
 	{
 		short int top;       // Top margin in pixels (if negative, counts backwards from the bottom edge)
@@ -346,6 +355,7 @@ typedef struct
 		short int left;      // Left margin in pixels (if negative, counts backwards from the right edge)
 		short int right;     // Right margin in pixels (supports negative values, too)
 	} margins;
+	FONT_STYLE_T       style;          // Default font style to use when !is_formatted (defaults to Regular)
 	float              size_pt;        // Size of text in points. If not set (0.0f), defaults to 12pt
 	unsigned short int size_px;        // Size of text in pixels. Optional, but takes precedence over size_pt.
 	bool               is_centered;    // Horizontal centering
@@ -422,6 +432,7 @@ FBINK_API int fbink_close(int fbfd);
 // CAN safely be called multiple times,
 //     but doing so is only necessary if the framebuffer's state has changed (although fbink_reinit is preferred in this case),
 //     or if you modified one of the FBInkConfig fields that affects its results (listed below).
+// Returns -(ENOSYS) if the device is unsupported (NOTE: Only on reMarkable!)
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened for the duration of this call.
 // fbink_cfg:		Pointer to an FBInkConfig struct.
@@ -484,9 +495,20 @@ FBINK_API int fbink_print(int fbfd, const char* restrict string, const FBInkConf
 //       Which leads me to a final, critical warning:
 // NOTE: Don't try to pass non-font files or encrypted/obfuscated font files, because it *will* horribly segfault!
 FBINK_API int fbink_add_ot_font(const char* filename, FONT_STYLE_T style);
+// Same API and behavior, except that the set of fonts being loaded is tied to this specific FBInkOTConfig instance,
+// instead of being global.
+// In which case, resources MUST be released via fbink_free_ot_fonts_v2()!
+// NOTE: You can mix & match the v2 and legacy API, but for every fbink_add_ot_font() there must be an fbink_free_ot_fonts(),
+//       and for every fbink_add_ot_font_v2(), there must be an fbink_free_ot_fonts_v2()
+//       (for each matching FBInkOTConfig instance).
+FBINK_API int fbink_add_ot_font_v2(const char* filename, FONT_STYLE_T style, FBInkOTConfig* restrict cfg);
 
 // Free all loaded OpenType fonts. You MUST call this when you have finished all OT printing.
+// NOTE: Safe to call even if no fonts were actually loaded.
 FBINK_API int fbink_free_ot_fonts(void);
+// Same, but for a specific FBInkOTConfig instance if fbink_add_ot_font_v2 was used.
+// NOTE: Safe to call even if no fonts were actually loaded, in which case it'll return -(EINVAL)!
+FBINK_API int fbink_free_ot_fonts_v2(FBInkOTConfig* restrict cfg);
 
 // Print a string using an OpenType font.
 // NOTE: The caller MUST have loaded at least one font via fbink_add_ot_font() FIRST.
@@ -974,6 +996,14 @@ FBINK_API int fbink_button_scan(int fbfd, bool press_button, bool nosleep);
 // NOTE: Thread-safety obviously goes out the window with force_unplug enabled,
 //       since you can then only reasonably expect to be able to concurrently run a single instance of that function ;).
 FBINK_API int fbink_wait_for_usbms_processing(int fbfd, bool force_unplug);
+
+//
+// Attempt to untangle the rotation state on Kobo devices, converting between the murky "native" value
+// (i.e., what's in the fb vinfo), and a "canonical" one, representing how the device is actually physically laid out.
+// KOBO Only! Returns ENOSYS when disabled (!KOBO). Yes, that's ENOSYS, positive, given the function's signature ;).
+// See fbink_rota_quirks.c & utils/fbdepth.c for more details.
+FBINK_API uint8_t  fbink_rota_native_to_canonical(uint32_t rotate);
+FBINK_API uint32_t fbink_rota_canonical_to_native(uint8_t rotate);
 
 //
 ///
