@@ -264,12 +264,15 @@ type FBInkState struct {
 	GlyphWidth           uint8
 	GlyphHeight          uint8
 	IsPerfectFit         bool
+	IsPBSunxi            bool
+	IsKindleLegacy       bool
 	IsKoboNonMT          bool
 	NTXBootRota          uint8
 	NTXRotaQuirk         NTXRota
 	IsNTXQuirkyLandscape bool
 	CurrentRota          uint8
 	CanRotate            bool
+	CanHWInvert          bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -587,12 +590,15 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.GlyphWidth = uint8(stateC.glyph_width)
 	state.GlyphHeight = uint8(stateC.glyph_height)
 	state.IsPerfectFit = bool(stateC.is_perfect_fit)
+	state.IsPBSunxi = bool(stateC.is_pb_sunxi)
+	state.IsKindleLegacy = bool(stateC.is_kindle_legacy)
 	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
 	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
 	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
 	state.IsNTXQuirkyLandscape = bool(stateC.is_ntx_quirky_landscape)
 	state.CurrentRota = uint8(stateC.current_rota)
 	state.CanRotate = bool(stateC.can_rotate)
+	state.CanHWInvert = bool(stateC.can_hw_invert)
 }
 
 // FBprint prints a string to the screen
