@@ -1,6 +1,6 @@
 /*
 	FBInk: FrameBuffer eInker, a library to print text & images to an eInk Linux framebuffer
-	Copyright (C) 2018-2020 NiLuJe <ninuje@gmail.com>
+	Copyright (C) 2018-2021 NiLuJe <ninuje@gmail.com>
 	SPDX-License-Identifier: GPL-3.0-or-later
 
 	----
@@ -151,22 +151,22 @@ typedef uint8_t PADDING_INDEX_T;
 // NOTE: This is split in FG & BG to ensure that the default values lead to a sane result (i.e., black on white)
 typedef enum
 {
-	FG_BLACK = 0U,
-	FG_GRAY1,
-	FG_GRAY2,
-	FG_GRAY3,
-	FG_GRAY4,
-	FG_GRAY5,
-	FG_GRAY6,
-	FG_GRAY7,
-	FG_GRAY8,
-	FG_GRAY9,
-	FG_GRAYA,
-	FG_GRAYB,
-	FG_GRAYC,
-	FG_GRAYD,
-	FG_GRAYE,
-	FG_WHITE,
+	FG_BLACK = 0U,     // 0x00
+	FG_GRAY1,          // 0x11
+	FG_GRAY2,          // 0x22
+	FG_GRAY3,          // 0x33
+	FG_GRAY4,          // 0x44
+	FG_GRAY5,          // 0x55
+	FG_GRAY6,          // 0x66
+	FG_GRAY7,          // 0x77
+	FG_GRAY8,          // 0x88
+	FG_GRAY9,          // 0x99
+	FG_GRAYA,          // 0xAA
+	FG_GRAYB,          // 0xBB
+	FG_GRAYC,          // 0xCC
+	FG_GRAYD,          // 0xDD
+	FG_GRAYE,          // 0xEE
+	FG_WHITE,          // 0xFF
 	FG_MAX = 0xFFu,    // uint8_t
 } __attribute__((packed)) FG_COLOR_INDEX_E;
 typedef uint8_t FG_COLOR_INDEX_T;
@@ -197,27 +197,72 @@ typedef uint8_t BG_COLOR_INDEX_T;
 // NOTE: On EPDC v1 (as well as all Kindle) devices, REAGL & REAGLD generally expect to *always* be flashing.
 //       This is currently left at your own discretion, though.
 //       c.f., https://github.com/NiLuJe/FBInk/commit/32acece78f7cc92b06faa4a668feead260b8ce24
+// NOTE: On very old devices (e.g., Kobo Mk. 3 & 4; possibly early PB), only AUTO, DU & GC16 may be relied on.
+//       GC4 will probably behave, but A2 & GL16 are not a given at all:
+//       e.g., GL16 is actively broken on Kobo <= Mk. 4: c.f., https://github.com/baskerville/plato/issues/158#issuecomment-787520759.
+//       If a waveform mode produces unexpected/broken results, and/or if you start to hit unexpected EPDC timeouts (or even an OOPS),
+//       that's usually a strong hint that you're trying to use something you shouldn't ;).
 // NOTE: See the various mxcfb headers in the eink folder for more details about what's available on your platform.
 typedef enum
 {
-	WFM_AUTO = 0U,
-	WFM_DU,
-	WFM_GC16,
-	WFM_GC4,
-	WFM_A2,
-	WFM_GL16,
-	WFM_REAGL,
-	WFM_REAGLD,
-	WFM_GC16_FAST,
-	WFM_GL16_FAST,
-	WFM_DU4,
-	WFM_GL4,
-	WFM_GL16_INV,
-	WFM_GCK16,
-	WFM_GLKW16,
-	WFM_INIT,
+	WFM_AUTO = 0U,    // Let the EPDC choose, via histogram analysis of the refresh region.
+	//                   May *not* always (or ever) opt to use REAGL on devices where it is otherwise available.
+	//                   This is the default.
+	//                   If you request a flashing update w/ AUTO, FBInk automatically uses GC16 instead.
+	// Common
+	WFM_DU,    // From any to B&W, fast (~260ms), some light ghosting.
+	//            On-screen pixels will be left as-is for new content that is *not* B&W.
+	//            Great for UI highlights, or tracing touch/pen input.
+	//            Will never flash.
+	//            DU stands for "Direct Update".
+	WFM_GC16,    // From any to any, ~450ms, high fidelity (i.e., lowest risk of ghosting).
+	//              Ideal for image content.
+	//              If flashing, will flash and update the full region.
+	//              If not, only changed pixels will update.
+	//              GC stands for "Grayscale Clearing"
+	WFM_GC4,    // From any to B/W/GRAYA/GRAY5, (~290ms), some ghosting. (may be implemented as DU4 on some devices).
+	//             Will *probably* never flash, especially if the device doesn't implement any other 4 color modes.
+	//             Limited use-cases in practice.
+	WFM_A2,    // From B&W to B&W, fast (~120ms), some ghosting.
+	//            On-screen pixels will be left as-is for new content that is *not* B&W.
+	//            FBInk will ask the EPDC to enforce quantization to B&W to honor the "to" requirement,
+	//            (via EPDC_FLAG_FORCE_MONOCHROME).
+	//            Will never flash.
+	//            Consider bracketing a series of A2 refreshes between white screens to transition in and out of A2,
+	//            so as to honor the "from" requirement,
+	//            (especially given that FORCE_MONOCHROME may not be reliably able to do so, c.f., refresh_kobo_mk7):
+	//            non-flashing GC16 for the in transition, A2 or GC16 for the out transition.
+	//            A stands for "Animation"
+	WFM_GL16,    // From white to any, ~450ms, some ghosting.
+	//              Typically optimized for text on a white background.
+	// Newer generation devices only
+	WFM_REAGL,    // From white to any, ~450ms, with ghosting and flashing reduction.
+	//               When available, best option for text (in place of GL16).
+	//               May enforce timing constraints if in collision with another waveform mode, e.g.,
+	//               it may, to some extent, wait for completion of previous updates to have access to HW resources.
+	//               Marketing term for the feature is "Regal". Technically called 5-bit waveform modes.
+	WFM_REAGLD,    // From white to any, ~450ms, with more ghosting reduction, but less flashing reduction.
+	//                Should only be used when flashing, which should yield a less noticeable flash than GC16.
+	//                Rarely used in practice, because still optimized for text or lightly mixed content,
+	//                not pure image content.
+	// Kindle only
+	WFM_GC16_FAST,    // Better latency at the expense of lower fidelity than GC16.
+	WFM_GL16_FAST,    // Better latency at the expense of lower fidelity than GL16.
+	WFM_DU4,          // From any to B/W/GRAYA/GRAY5. (e.g., GC4. Will never flash).
+	WFM_GL4,          // From white to B/W/GRAYA/GRAY5.
+	WFM_GL16_INV,     // From black to any. Optimized for text on a black background (e.g., nightmode).
+	WFM_GCK16,        // From black to any. Goes hand-in-hand with GLKW16, should only be used when flashing.
+	WFM_GLKW16,       // From black to any. Newer variant of GL16_INV.
+	// For documentation purposes
+	WFM_INIT,    // May flash several times to end up with a white screen, slow (~2000ms).
 	WFM_UNKNOWN,
+	// reMarkable only
 	WFM_INIT2,
+	// PocketBook only
+	WFM_A2IN,
+	WFM_A2OUT,
+	WFM_GC16HQ,         // Only available on i.MX SoCs. Alias for REAGL, or REAGLD when flashing.
+	WFM_GS16,           // Only available on B288 SoCs. Fidelity supposedly somewhere between GL16 and GC16.
 	WFM_MAX = 0xFFu,    // uint8_t
 } __attribute__((packed)) WFM_MODE_INDEX_E;
 typedef uint8_t WFM_MODE_INDEX_T;
@@ -228,7 +273,7 @@ typedef enum
 	HWD_PASSTHROUGH = 0U,
 	HWD_FLOYD_STEINBERG,
 	HWD_ATKINSON,
-	HWD_ORDERED,
+	HWD_ORDERED,    // Generally the only supported HW variant on EPDC v2
 	HWD_QUANT_ONLY,
 	HWD_LEGACY = 0xFFu,    // Use legacy EPDC v1 dithering instead (if available).
 	//                        Note that it is *not* offloaded to the PxP, it's purely software, in-kernel.
@@ -280,12 +325,15 @@ typedef struct
 	uint8_t glyph_width;         // glyphWidth (native width of a glyph cell, i.e. unscaled)
 	uint8_t glyph_height;        // glyphHeight (native height of a glyph cell, i.e. unscaled)
 	bool    is_perfect_fit;      // deviceQuirks.isPerfectFit (horizontal column balance is perfect over viewWidth)
-	bool    is_kobo_non_mt;      // deviceQuirks.isKoboNonMT (device is a Kobo with no MultiTouch input support)
-	uint8_t ntx_boot_rota;       // deviceQuirks.ntxBootRota (Native rotation at boot)
+	bool    is_pb_sunxi;         // deviceQuirks.isPBSunxi (device is a PocketBook running on an AllWinner SoC)
+	bool is_kindle_legacy;    // deviceQuirks.isKindleLegacy (device is a Kindle using the original einkfb EPDC API)
+	bool is_kobo_non_mt;      // deviceQuirks.isKoboNonMT (device is a Kobo with no MultiTouch input support)
+	uint8_t          ntx_boot_rota;     // deviceQuirks.ntxBootRota (Native rotation at boot)
 	NTX_ROTA_INDEX_T ntx_rota_quirk;    // deviceQuirks.ntxRotaQuirk (c.f., utils/dump.c)
 	bool    is_ntx_quirky_landscape;    // deviceQuirks.isNTX16bLandscape (rotation compensation is in effect)
 	uint8_t current_rota;               // vInfo.rotate (current rotation, c.f., <linux/fb.h>)
 	bool    can_rotate;                 // deviceQuirks.canRotate (device has a gyro)
+	bool    can_hw_invert;              // deviceQuirks.canHWInvert (device can use EPDC inversion)
 } FBInkState;
 
 // What a FBInk config should look like. Perfectly sane when fully zero-initialized.
@@ -297,7 +345,7 @@ typedef struct
 	FONT_INDEX_T fontname;       // Request a specific bundled font
 	bool         is_inverted;    // Invert colors.
 	//				This is *NOT* mutually exclusive with is_nightmode, and is *always* supported.
-	bool             is_flashing;    // Request a black flash on refresh
+	bool             is_flashing;    // Request a black flash on refresh (e.g., UPDATE_MODE_FULL instead of PARTIAL)
 	bool             is_cleared;     // Clear the full screen beforehand (honors bg_color & is_inverted)
 	bool             is_centered;    // Center the text (horizontally)
 	short int        hoffset;        // Horizontal offset (in pixels) for text position
@@ -326,19 +374,24 @@ typedef struct
 	WFM_MODE_INDEX_T  wfm_mode;          // Request a specific waveform mode (defaults to AUTO)
 	HW_DITHER_INDEX_T dithering_mode;    // Request a specific dithering mode (defaults to PASSTHROUGH)
 	bool              sw_dithering;      // Request (ordered) *software* dithering when printing an image.
-					     // This is *NOT* mutually exclusive with dithering_mode!
-	bool is_nightmode;                   // Request hardware inversion (if supported/safe).
-	//					This is *NOT* mutually exclusive with is_inverted!
-	//					NOTE: If the HW doesn't support inversion, a warning is printed during init.
-	//					      If you're convinced this is in error (i.e., up to date kernel),
-	//					      you can bypass that check by setting FBINK_ALLOW_HW_INVERT in your env.
+	//                                      This is *NOT* mutually exclusive with dithering_mode!
+	bool is_nightmode;    // Request hardware inversion (via EPDC_FLAG_ENABLE_INVERSION, if supported/safe).
+	//			 This is *NOT* mutually exclusive with is_inverted!
+	//			 NOTE: If the HW doesn't support inversion, a warning is printed during init.
+	//			       If you're convinced this is in error (i.e., up to date kernel),
+	//			       you can bypass that check by setting FBINK_ALLOW_HW_INVERT in your env.
 	bool no_refresh;    // Skip actually refreshing the eInk screen (useful when drawing in batch)
 	bool to_syslog;     // Send messages & errors to the syslog instead of stdout/stderr
 } FBInkConfig;
 
-// Same, but for OT/TTF specific stuff
+// Same, but for OT/TTF specific stuff. MUST be zero-initialized.
 typedef struct
 {
+	void* font;    // NOTE: This is essentially a pointer to a local FBInkOTFonts instance,
+	//                      in order to use a set of fonts specific to an FBInkOTConfig,
+	//                      via fbink_add_ot_font_v2() & fbink_free_ot_fonts_v2().
+	//                      Consider it *private*: it needs to be NULL on init to be sane, but after that,
+	//                      it's only used & memory managed by FBInk itself (via the aforemented _v2 API), not the user.
 	struct
 	{
 		short int top;       // Top margin in pixels (if negative, counts backwards from the bottom edge)
@@ -346,6 +399,7 @@ typedef struct
 		short int left;      // Left margin in pixels (if negative, counts backwards from the right edge)
 		short int right;     // Right margin in pixels (supports negative values, too)
 	} margins;
+	FONT_STYLE_T       style;          // Default font style to use when !is_formatted (defaults to Regular)
 	float              size_pt;        // Size of text in points. If not set (0.0f), defaults to 12pt
 	unsigned short int size_px;        // Size of text in pixels. Optional, but takes precedence over size_pt.
 	bool               is_centered;    // Horizontal centering
@@ -356,9 +410,9 @@ typedef struct
 	//                                    consecutive strings on the same line(s).
 	bool is_formatted;    // Is string "formatted"? Bold/Italic support only, markdown like syntax
 	bool compute_only;    // Abort early after the line-break computation pass (no actual rendering).
-	//                                     NOTE: This is early enough that it will *NOT* be able to predict *every*
-	//                                           potential case of truncation.
-	//                                           In particular, broken metrics may yield a late truncation at rendering time.
+	//                       NOTE: This is early enough that it will *NOT* be able to predict *every*
+	//                             potential case of truncation.
+	//                             In particular, broken metrics may yield a late truncation at rendering time.
 	bool no_truncation;    // Abort as early as possible (but not necessarily before the rendering pass),
 			       // if the string cannot fit in the available area at the current font size.
 } FBInkOTConfig;
@@ -422,6 +476,7 @@ FBINK_API int fbink_close(int fbfd);
 // CAN safely be called multiple times,
 //     but doing so is only necessary if the framebuffer's state has changed (although fbink_reinit is preferred in this case),
 //     or if you modified one of the FBInkConfig fields that affects its results (listed below).
+// Returns -(ENOSYS) if the device is unsupported (NOTE: Only on reMarkable!)
 // fbfd:		Open file descriptor to the framebuffer character device,
 //				if set to FBFD_AUTO, the fb is opened for the duration of this call.
 // fbink_cfg:		Pointer to an FBInkConfig struct.
@@ -484,9 +539,20 @@ FBINK_API int fbink_print(int fbfd, const char* restrict string, const FBInkConf
 //       Which leads me to a final, critical warning:
 // NOTE: Don't try to pass non-font files or encrypted/obfuscated font files, because it *will* horribly segfault!
 FBINK_API int fbink_add_ot_font(const char* filename, FONT_STYLE_T style);
+// Same API and behavior, except that the set of fonts being loaded is tied to this specific FBInkOTConfig instance,
+// instead of being global.
+// In which case, resources MUST be released via fbink_free_ot_fonts_v2()!
+// NOTE: You can mix & match the v2 and legacy API, but for every fbink_add_ot_font() there must be an fbink_free_ot_fonts(),
+//       and for every fbink_add_ot_font_v2(), there must be an fbink_free_ot_fonts_v2()
+//       (for each matching FBInkOTConfig instance).
+FBINK_API int fbink_add_ot_font_v2(const char* filename, FONT_STYLE_T style, FBInkOTConfig* restrict cfg);
 
 // Free all loaded OpenType fonts. You MUST call this when you have finished all OT printing.
+// NOTE: Safe to call even if no fonts were actually loaded.
 FBINK_API int fbink_free_ot_fonts(void);
+// Same, but for a specific FBInkOTConfig instance if fbink_add_ot_font_v2 was used.
+// NOTE: Safe to call even if no fonts were actually loaded, in which case it'll return -(EINVAL)!
+FBINK_API int fbink_free_ot_fonts_v2(FBInkOTConfig* restrict cfg);
 
 // Print a string using an OpenType font.
 // NOTE: The caller MUST have loaded at least one font via fbink_add_ot_font() FIRST.
@@ -785,7 +851,7 @@ FBINK_API int fbink_print_image(int                         fbfd,
 //       Generally, that'd be RGBA (32bpp) on Kobo (or RGB (24bpp) with ignore_alpha),
 //       and YA (grayscale + alpha) on Kindle (or Y (8bpp) with ignore_alpha).
 FBINK_API int fbink_print_raw_data(int                         fbfd,
-				   unsigned char*              data,
+				   unsigned char* restrict     data,
 				   const int                   w,
 				   const int                   h,
 				   const size_t                len,
@@ -974,6 +1040,14 @@ FBINK_API int fbink_button_scan(int fbfd, bool press_button, bool nosleep);
 // NOTE: Thread-safety obviously goes out the window with force_unplug enabled,
 //       since you can then only reasonably expect to be able to concurrently run a single instance of that function ;).
 FBINK_API int fbink_wait_for_usbms_processing(int fbfd, bool force_unplug);
+
+//
+// Attempt to untangle the rotation state on Kobo devices, converting between the murky "native" value
+// (i.e., what's in the fb vinfo), and a "canonical" one, representing how the device is actually physically laid out.
+// KOBO Only! Returns ENOSYS when disabled (!KOBO). Yes, that's ENOSYS, positive, given the function's signature ;).
+// See fbink_rota_quirks.c & utils/fbdepth.c for more details.
+FBINK_API uint8_t  fbink_rota_native_to_canonical(uint32_t rotate);
+FBINK_API uint32_t fbink_rota_canonical_to_native(uint8_t rotate);
 
 //
 ///

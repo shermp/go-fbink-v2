@@ -177,6 +177,10 @@ const (
 	WfmINIT
 	WfmUNKNOWN
 	WfmINIT2
+	WfmA2In
+	WfmA2Out
+	WfmGC16HQ
+	WfmGS16
 )
 
 // HWDither type
@@ -220,7 +224,9 @@ const (
 	eTime                  = CexitCode(C.ETIME) * -1
 	eInval                 = CexitCode(C.EINVAL) * -1
 	eIlSeq                 = CexitCode(C.EILSEQ) * -1
+	eRange                 = CexitCode(C.ERANGE) * -1
 	eNoSpc                 = CexitCode(C.ENOSPC) * -1
+	eNoSys                 = CexitCode(C.ENOSYS) * -1
 )
 
 // FBFDauto is the automatic fbfd handler
@@ -258,12 +264,15 @@ type FBInkState struct {
 	GlyphWidth           uint8
 	GlyphHeight          uint8
 	IsPerfectFit         bool
+	IsPBSunxi            bool
+	IsKindleLegacy       bool
 	IsKoboNonMT          bool
 	NTXBootRota          uint8
 	NTXRotaQuirk         NTXRota
 	IsNTXQuirkyLandscape bool
 	CurrentRota          uint8
 	CanRotate            bool
+	CanHWInvert          bool
 }
 
 // FBInkConfig is a struct which configures the behavior of fbink
@@ -304,12 +313,14 @@ type FBInkConfig struct {
 
 // FBInkOTConfig is a struct which configures OpenType specific options
 type FBInkOTConfig struct {
+	//Font         unsafe.Pointer
 	Margins struct {
 		Top    int16
 		Bottom int16
 		Left   int16
 		Right  int16
 	}
+	Style        FontStyle
 	SizePt       float32
 	SizePx       uint16
 	IsCentred    bool
@@ -376,8 +387,12 @@ func createError(retValue CexitCode) error {
 		return errors.New("EINVAL")
 	case eIlSeq:
 		return errors.New("EILSEQ")
+	case eRange:
+		return errors.New("ERANGE")
 	case eNoSpc:
 		return errors.New("ENOSPC")
+	case eNoSys:
+		return errors.New("ENOSYS")
 	default:
 		return nil
 	}
@@ -443,10 +458,15 @@ func (f *FBInk) newConfigC(cfg *FBInkConfig) C.FBInkConfig {
 
 func (f *FBInk) newOTConfig(otCfg *FBInkOTConfig) C.FBInkOTConfig {
 	var otCfgC C.FBInkOTConfig
+	// Opaque pointer, should be considered mostly private, unless attempting tricky stuff with the _v2 API calls
+	//otCfgC.font = unsafe.Pointer(otCfg.Font)
+	// We're not using the _v2 ot_font API, so, just nil it to keep using the global font pool
+	otCfgC.font = nil
 	otCfgC.margins.top = C.short(otCfg.Margins.Top)
 	otCfgC.margins.bottom = C.short(otCfg.Margins.Bottom)
 	otCfgC.margins.left = C.short(otCfg.Margins.Left)
 	otCfgC.margins.right = C.short(otCfg.Margins.Right)
+	otCfgC.style = C.int(otCfg.Style)
 	otCfgC.size_pt = C.float(otCfg.SizePt)
 	otCfgC.size_px = C.uint16_t(otCfg.SizePx)
 	otCfgC.is_centered = C.bool(otCfg.IsCentred)
@@ -570,12 +590,15 @@ func (f *FBInk) GetState(cfg *FBInkConfig, state *FBInkState) {
 	state.GlyphWidth = uint8(stateC.glyph_width)
 	state.GlyphHeight = uint8(stateC.glyph_height)
 	state.IsPerfectFit = bool(stateC.is_perfect_fit)
+	state.IsPBSunxi = bool(stateC.is_pb_sunxi)
+	state.IsKindleLegacy = bool(stateC.is_kindle_legacy)
 	state.IsKoboNonMT = bool(stateC.is_kobo_non_mt)
 	state.NTXBootRota = uint8(stateC.ntx_boot_rota)
 	state.NTXRotaQuirk = NTXRota(stateC.ntx_rota_quirk)
 	state.IsNTXQuirkyLandscape = bool(stateC.is_ntx_quirky_landscape)
 	state.CurrentRota = uint8(stateC.current_rota)
 	state.CanRotate = bool(stateC.can_rotate)
+	state.CanHWInvert = bool(stateC.can_hw_invert)
 }
 
 // FBprint prints a string to the screen
@@ -795,11 +818,27 @@ func (f *FBInk) ClearScreen(cfg *FBInkConfig, rect *FBInkRect) error {
 	return createError(res)
 }
 
+// RotaNativeToCanonical attempts to convert a native vInfo rotate constant to a canonical representation
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) RotaNativeToCanonical(rotate uint32) (uint8) {
+	res := C.fbink_rota_native_to_canonical(C.uint32_t(rotate))
+	return uint8(res)
+}
+
+// RotaCanonicalToNative attempts to convert a canonical representation to a native vInfo rotate constant
+// See "fbink.h" for detailed usage and explanation
+func (f *FBInk) RotaCanonicalToNative(rotate uint8) (uint32) {
+	res := C.fbink_rota_canonical_to_native(C.uint8_t(rotate))
+	return uint32(res)
+}
+
 // TODO: fbink_dump, fbink_region_dump, fbink_restore, fbink_free_dump_data
 // TODO: fbink_update_verbosity, fbink_update_pen_colors
 //       (which don't make much sense given the RestrictedConfig concept here ;)).
 // TODO: fbink_set_fg_pen_gray, fbink_set_bg_pen_gray, fbink_set_fg_pen_rgba, fbink_set_bg_pen_rgba
 // TODO: fbink_grid_clear, fbink_grid_refresh
+// TODO: fbink_add_ot_font_v2, fbink_free_ot_fonts_v2
+//       (don't really fit with the current API ;))
 
 // ButtonScan will scan for the 'Connect' button on the Kobo USB connect screen
 // See "fbink.h" for detailed usage and explanation
