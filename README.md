@@ -20,12 +20,10 @@ import "github.com/shermp/go-fbink-v2/gofbink"
 ```
 Note, you will need to enable cgo support when building your project, by setting the `CGO_ENABLED=1` environment variable when building, along with setting the `CC` and `CXX` environment variables to your ARM toolchain's GCC and G++ paths respectively, as well as setting the proper target architecture with `GOARCH=arm`.
 
-A simple example program has been provided in `example/main.go`
+A simple example program has been provided in [`example/`](./example/)
 
 You can refer to the original documentation found in the `fbink.h` file, which can be found at `gofbink/fbink.h`.
 
 The primary usage difference from FBInk is that where appropriate, go-fbink returns an error, or nil, rather than an integer to indicate success or failure. Note that the error string contains the C error code name (eg: "EXIT_FAILURE").
 
 The only function that is unavailable in go-fbink is `fbink_printf()`. This is because cgo does not support variadic parameters. So, if that functionality is required, a simple `s := fmt.Sprintf("String %d", 1)` should do the trick...
-
-
